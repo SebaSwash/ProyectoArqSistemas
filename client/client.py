@@ -48,11 +48,11 @@ class Client:
     return str_tx_length 
   
   # Método generador de la transacción con el formato correspondiente establecido en el bus
-  def generate_tx(self, service,data):
+  def generate_tx(self, service, data):
     return self.generate_tx_length(len(service + data)) + service + data
   
   # Método para dividir la transacción recibida desde el servidor y separarla para verificar estado (OK/NK)
-  def split_recv_tx(self,tx):
+  def split_recv_tx(self, tx):
     tx_length = tx[:5] # Largo de la transacción
     tx_service = tx[5:10] # Servicio invocado
     tx_status = tx[10:12] # 'OK' (éxito) o 'NK' (fallido)
@@ -61,7 +61,36 @@ class Client:
     return (tx_length, tx_service, tx_status, tx_data)
   
   def run(self):
-    print('Ejecución del cliente . . .')
+    # Ciclo de ejecución del proceso cliente
+    while True:
+      service_name = input('Servicio a invocar: ')
+      msg = input('Mensaje: ')
+
+      # Se envía el mensaje al servicio por medio del bus de servicios
+      self.sock.send(self.generate_tx(service_name,msg).encode(encoding='UTF-8'))
+
+      # Se recibe la transacción desde el servicio
+      tx = self.sock.recv(4096)
+
+      if not tx:
+        # Se cierra el servicio si no se reciben datos desde el socket
+        self.sock.close()
+        break
+
+      try:
+        tx = tx.decode('UTF-8')
+        tx_length, tx_service, tx_status, tx_data = self.split_recv_tx(tx)
+        print('------------------------------------------------------------------------------')
+        print('Transacción recibida desde el servicio')
+        print('\t- Largo de la transacción: ' +str(tx_length)+' ('+str(int(tx_length))+')')
+        print('\t- Servicio invocado: '+str(tx_service))
+        print('\t- Estado de transacción: '+str(tx_status))
+        print('\t- Datos recibidos: '+str(tx_data))
+      
+      except Exception as error:
+        print('[Error] Se ha producido el siguiente error al procesar la transacción:')
+        print(str(error))
+
 
 if __name__ == '__main__':
   # Configuración de argumentos solicitados al momento de ejecutar el comando en la terminal

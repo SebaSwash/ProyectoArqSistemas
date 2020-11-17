@@ -47,8 +47,8 @@ class Service:
     return str_tx_length 
   
   # Método generador de la transacción con el formato correspondiente establecido en el bus
-  def generate_tx(self, service, data):
-    return self.generate_tx_length(len(service + data)) + service + data
+  def generate_tx(self, data):
+    return self.generate_tx_length(len(self.service_name + data)) + self.service_name + data
   
   # Método para dividir la transacción recibida desde el cliente a través del bus de servicios
   def split_tx(self ,tx):
@@ -59,7 +59,36 @@ class Service:
     return (tx_length, tx_service, tx_data)
 
   def run(self):
-    print('Ejecución del servicio . . .')
+    # El servicio se mantiene escuchando a través del socket
+    while True:
+      tx = self.sock.recv(4096)
+
+      if not tx:
+        # Se cierra el servicio si no se reciben datos desde el socket
+        self.sock.close()
+        break
+
+      try:
+        tx = tx.decode('UTF-8')
+        # Se procesa la transacción para obtener los componentes individuales
+        tx_length, tx_service, tx_data = self.split_tx(tx)
+        print('------------------------------------------------------------------------------')
+        print('Transacción recibida desde cliente')
+        print('\t- Largo de la transacción: ' +str(tx_length)+' ('+str(int(tx_length))+')')
+        print('\t- Servicio invocado: '+str(tx_service))
+        print('\t- Datos recibidos: '+str(tx_data))
+        print('------------------------------------------------------------------------------')
+
+        # Se responde a la transacción del cliente por medio del bus de servicios
+        self.sock.send(self.generate_tx('La transacción ha sido recibida correctamente en el servidor :D').encode(encoding='UTF-8'))
+      
+      except Exception as error:
+        # Se notifica el error al cliente y se imprime en el servicio
+        print('[Error] Se ha producido el siguiente error al procesar la transacción:')
+        print(str(error))
+        error_msg = '[Error] Se ha producido el siguiente error al procesar la transacción:\n'+str(error)
+        self.sock.send(self.generate_tx(error_msg).encode(encoding='UTF-8'))
+
 
 if __name__ == '__main__':
   # Configuración de argumentos solicitados al momento de ejecutar el comando en la terminal
