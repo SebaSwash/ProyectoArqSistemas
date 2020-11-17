@@ -27,12 +27,27 @@ class Service:
       self.host = host
       self.port = port
 
+      self.bus_register() # Registro del servicio en el bus de servicios
       self.run() # Inicio de la ejecución del servicio
 
     except Exception as error:
       print('[Error] Se ha producido el siguiente error al establecer conexión con el bus de servicios:')
       print(str(error))
   
+  # Registro del nombre de servicio en el bus previo a la ejecución
+  def bus_register(self):
+    try:
+      tx_cmd = 'sinit'+self.service_name # Comando de registro de servicio ante el bus
+      tx = self.generate_tx_length(len(tx_cmd)) + tx_cmd
+
+      self.sock.send(tx.encode(encoding='UTF-8'))
+      status = self.sock.recv(4096).decode('UTF-8')[10:12] # 'OK' (exitoso) o 'NK' (fallido)
+    
+    except Exception as error:
+      print('[Error] Se ha producido el siguiente error al registrar el servicio:')
+      print(str(error))
+      return
+
   # Método para generar el largo de la transacción (servicio + data) - Ej: 18 (int) --> 00018 (str)
   def generate_tx_length(self, tx_length):
     char_ammount = 5 # Cantidad de caracteres máximos para definir el largo de la transacción (5 según formato solicitado por el bus)
