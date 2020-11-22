@@ -11,12 +11,17 @@
 # ╚═════════════════════════════════════════════════════════════════════════════════════════════╝
 
 # Módulos a utilizar
-import socket, argparse
+from db import db_wrapper
+from db.db_credentials import *
+import socket, argparse, bcrypt
 
 class Service:
   def __init__(self, host, port, name):
     self.service_title = 'Servicio de autenticación de usuarios' # Título con descripción del servicio
     self.service_name = name # Nombre del servicio para reconocimiento del bus de servicios
+
+    # Se realiza la conexión a la base de datos con las credenciales
+    self.db = db_wrapper.Database(DB_HOST, DB_PORT, DB_USER, DB_PASSWD, DB_DATABASE)
 
     # Se genera el socket utilizando protocolo TCP
     self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -33,7 +38,7 @@ class Service:
     except Exception as error:
       print('[Error] Se ha producido el siguiente error al establecer conexión con el bus de servicios:')
       print(str(error))
-  
+    
   # Registro del nombre de servicio en el bus previo a la ejecución
   def bus_register(self):
     try:
@@ -94,8 +99,48 @@ class Service:
         print('\t- Datos recibidos: '+str(tx_data))
         print('------------------------------------------------------------------------------')
 
-        # Se responde a la transacción del cliente por medio del bus de servicios
-        self.sock.send(self.generate_tx('La transacción ha sido recibida correctamente en el servidor :D').encode(encoding='UTF-8'))
+        # Se revisa el número de operación recibido desde el cliente
+        try:
+          client_data = eval(tx_data)
+
+          if client_data['tx_option'] == 1:
+            # Autenticación de cuenta
+            # Se revisa en la base de datos la existencia del usuario según el RUT y se obtiene el hash de la password si existe.
+            sql_query = '''
+              SELECT *
+                FROM Usuarios
+                  WHERE rut = %s
+            '''
+            cursor = self.db.query(sql_query, (client_data['user_rut'],)) # Se ejecuta la consulta en la base de datos
+            user_reg = cursor.fetchone() # Se obtiene el registro único desde la base de datos
+
+            if user_reg is not None:
+              # El usuario se encuentra registrado en la base de datos
+              # Se comprueba si la contraseña enviada hace match con el hash almacenado en el registro del usuario
+              if bcrypt.checkpw(client_data['password'].encode(encoding='UTF-8'), user_reg['password'].encode(encoding='UTF-8')):
+                # La contraseña ingresada es correcta. Se envían los datos personales (omitiendo el hash de la password)
+                del user_reg['password']
+                resp_data = user_reg
+                resp_data['auth_error'] = False # Se agrega el flag de autenticación exitosa
+              
+              else:
+                # La contraseña ingresada es incorrecta
+                # # Se notifica con el error correspondiente
+                resp_data = {'auth_error': True, 'error_notification': 'Se ha producido un error de credenciales. Revisa nuevamente los campos.'}
+
+            else:
+              # El usuario no se encuentra registrado en la base de datos
+              # Se notifica con el error correspondiente
+              resp_data = {'auth_error': True, 'error_notification': 'Se ha producido un error de credenciales. Revisa nuevamente los campos.'}
+        
+        except Exception as error:
+          print(error)
+          # Se genera el error y se envía al cliente
+          resp_data = {'auth_error': True, 'error_notification': str(error)}
+        
+        # Se genera la transacción y se envía al cliente
+        tx = self.generate_tx(str(resp_data)).encode(encoding='UTF-8')
+        self.sock.send(tx)
       
       except Exception as error:
         # Se notifica el error al cliente y se imprime en el servicio
