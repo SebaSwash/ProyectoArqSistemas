@@ -2,7 +2,7 @@
 # pylint: enable=too-many-lines
 
 # ╔═════════════════════════════════════════════════════════════════════════════════════════════╗
-# ║ Servicio de autenticación de usuarios para proyecto de Arquitectura de Sistemas (02 - 2020) ║
+# ║ Servicio de gestión de usuarios para proyecto de Arquitectura de Sistemas (02 - 2020)       ║
 # ╠═════════════════════════════════════════════════════════════════════════════════════════════╣
 # ║ Integrantes:                                                                                ║
 # ║ * Lorenzo Alfaro Bravo                                                                      ║
@@ -13,7 +13,7 @@
 # Módulos a utilizar
 from db import db_wrapper
 from db.db_credentials import *
-import socket, argparse, bcrypt, os
+import socket, argparse, bcrypt, os, pickle
 from colorama import Back, Fore, Style, init
 
 # Inicialización para librería de colores
@@ -32,7 +32,7 @@ SUCCESS_STYLE = Back.GREEN + Fore.WHITE
 
 class Service:
   def __init__(self, host, port, name):
-    self.service_title = 'Servicio de autenticación de usuarios' # Título con descripción del servicio
+    self.service_title = 'Servicio de gestión de usuarios' # Título con descripción del servicio
     self.service_name = name # Nombre del servicio para reconocimiento del bus de servicios
 
     # Se realiza la conexión a la base de datos con las credenciales
@@ -56,7 +56,7 @@ class Service:
     except Exception as error:
       print(ERROR_STYLE+'[Error] Se ha producido el siguiente error al establecer conexión con el bus de servicios:')
       print(str(error)+Style.RESET_ALL)
-    
+  
   # Registro del nombre de servicio en el bus previo a la ejecución
   def bus_register(self):
     try:
@@ -74,7 +74,7 @@ class Service:
       print(ERROR_STYLE+'[Error] Se ha producido el siguiente error al registrar el servicio:')
       print(str(error)+Style.RESET_ALL)
       return
-
+  
   # Método para generar el largo de la transacción (servicio + data) - Ej: 18 (int) --> 00018 (str)
   def generate_tx_length(self, tx_length):
     char_ammount = 5 # Cantidad de caracteres máximos para definir el largo de la transacción (5 según formato solicitado por el bus)
@@ -99,7 +99,7 @@ class Service:
     tx_data = tx[10:] # Datos enviados por el cliente
 
     return (tx_length, tx_service, tx_data)
-
+  
   def run(self):
     # El servicio se mantiene escuchando a través del socket
     while True:
@@ -114,7 +114,7 @@ class Service:
         tx = tx.decode('UTF-8')
         # Se procesa la transacción para obtener los componentes individuales
         tx_length, tx_service, tx_data = self.split_tx(tx)
-        
+
         print('')
         print(INFO_STYLE+'Transacción recibida desde cliente'+Style.RESET_ALL)
         print(INSTRUCTIONS_STYLE+'\t- Largo de la transacción: ' +str(tx_length)+' ('+str(int(tx_length))+')'+Style.RESET_ALL)
@@ -125,36 +125,30 @@ class Service:
         try:
           client_data = eval(tx_data)
 
-          if client_data['tx_option'] == 1:
-            # Autenticación de cuenta
-            # Se revisa en la base de datos la existencia del usuario según el RUT y se obtiene el hash de la password si existe.
+          # Se verifica la opción de transacción enviada por el cliente
+          tx_option = client_data['tx_option']
+
+          if tx_option == 0:
+            # Se envía el menú interno al cliente
+            option_list = ['Ver lista de usuarios registrados', 'Ver detalle de usuario', 'Modificar usuario', 'Eliminar usuario', 'Volver']
+            resp_data = {}
+            resp_data['menu_title'] = 'Menú de gestión de usuarios'
+            resp_data['menu_subtitle'] = 'Selecciona una de las opciones a continuación.'
+            resp_data['menu_options'] = option_list
+          
+          elif tx_option == 1:
+            # Se envía la lista de usuarios registrados (ordenada por apellidos)
             sql_query = '''
-              SELECT *
+              SELECT rut,nombres,apellidos,email,direccion
                 FROM Usuarios
-                  WHERE rut = %s
+                  ORDER BY apellidos ASC
             '''
-            cursor = self.db.query(sql_query, (client_data['user_rut'],)) # Se ejecuta la consulta en la base de datos
-            user_reg = cursor.fetchone() # Se obtiene el registro único desde la base de datos
+            cursor = self.db.query(sql_query, None)
 
-            if user_reg is not None:
-              # El usuario se encuentra registrado en la base de datos
-              # Se comprueba si la contraseña enviada hace match con el hash almacenado en el registro del usuario
-              if bcrypt.checkpw(client_data['password'].encode(encoding='UTF-8'), user_reg['password'].encode(encoding='UTF-8')):
-                # La contraseña ingresada es correcta. Se envían los datos personales (omitiendo el hash de la password)
-                del user_reg['password']
-                resp_data = user_reg
-                resp_data['auth_error'] = False # Se agrega el flag de autenticación exitosa
-              
-              else:
-                # La contraseña ingresada es incorrecta
-                # # Se notifica con el error correspondiente
-                resp_data = {'auth_error': True, 'error_notification': 'Se ha producido un error de credenciales. Revisa nuevamente los campos.'}
+            # Se genera el objeto a enviar
+            resp_data = {}
+            resp_data['users_list'] = cursor.fetchall()
 
-            else:
-              # El usuario no se encuentra registrado en la base de datos
-              # Se notifica con el error correspondiente
-              resp_data = {'auth_error': True, 'error_notification': 'Se ha producido un error de credenciales. Revisa nuevamente los campos.'}
-        
         except Exception as error:
           print(ERROR_STYLE+error+Style.RESET_ALL)
           # Se genera el error y se envía al cliente
@@ -162,6 +156,7 @@ class Service:
         
         # Se genera la transacción y se envía al cliente
         tx = self.generate_tx(str(resp_data)).encode(encoding='UTF-8')
+
         self.sock.send(tx)
       
       except Exception as error:
@@ -170,7 +165,6 @@ class Service:
         print(str(error)+Style.RESET_ALL)
         error_msg = '[Error] Se ha producido el siguiente error al procesar la transacción:\n'+str(error)
         self.sock.send(self.generate_tx(error_msg).encode(encoding='UTF-8'))
-
 
 if __name__ == '__main__':
   # Configuración de argumentos solicitados al momento de ejecutar el comando en la terminal
