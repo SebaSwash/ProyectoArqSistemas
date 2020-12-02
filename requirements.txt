@@ -1,0 +1,7 @@
+prettytable==1.0.1
+terminaltables==3.1.0
+colorama==0.3.9
+console_menu==0.6.0
+consolemenu==1.0.1
+mysql_connector_repackaged==0.3.1
+python_bcrypt==0.3.2
