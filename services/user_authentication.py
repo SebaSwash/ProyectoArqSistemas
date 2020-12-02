@@ -12,6 +12,7 @@
 
 # Módulos a utilizar
 from db import db_wrapper
+from datetime import datetime
 from db.db_credentials import *
 import socket, argparse, bcrypt, os
 from colorama import Back, Fore, Style, init
@@ -44,7 +45,7 @@ class Service:
     try:
       self.sock.connect((host, int(port)))
       print(INSTRUCTIONS_STYLE+self.service_title+Style.RESET_ALL)
-      print(SUCCESS_STYLE+'* Servicio conectado correctamente al bus de servicios. Host: '+str(host)+' - Puerto: '+str(port)+Style.RESET_ALL)
+      print(SUCCESS_STYLE+'['+str(datetime.now().replace(microsecond=0))+'] Servicio conectado correctamente al bus de servicios. Host: '+str(host)+' - Puerto: '+str(port)+Style.RESET_ALL)
       # En caso de conectar exitosamente, se guarda como atributo el host y el puerto
       self.host = host
       self.port = port
@@ -68,7 +69,7 @@ class Service:
       
       if status.lower() == 'ok':
         # Se ha realizado correctamente el registro del servicio con el nombre
-        print(SUCCESS_STYLE+'* Servicio registrado correctamente en el bus de servicio con nombre "'+str(self.service_name)+'"'+Style.RESET_ALL)
+        print(SUCCESS_STYLE+'['+str(datetime.now().replace(microsecond=0))+'] Servicio registrado correctamente en el bus de servicio con nombre "'+str(self.service_name)+'"'+Style.RESET_ALL)
     
     except Exception as error:
       print(ERROR_STYLE+'[Error] Se ha producido el siguiente error al registrar el servicio:')
@@ -116,7 +117,7 @@ class Service:
         tx_length, tx_service, tx_data = self.split_tx(tx)
         
         print('')
-        print(INFO_STYLE+'Transacción recibida desde cliente'+Style.RESET_ALL)
+        print(INFO_STYLE+'['+str(datetime.now().replace(microsecond=0))+'] Transacción recibida desde cliente'+Style.RESET_ALL)
         print(INSTRUCTIONS_STYLE+'\t- Largo de la transacción: ' +str(tx_length)+' ('+str(int(tx_length))+')'+Style.RESET_ALL)
         print(INSTRUCTIONS_STYLE+'\t- Servicio invocado: '+str(tx_service)+Style.RESET_ALL)
         print(INSTRUCTIONS_STYLE+'\t- Datos recibidos: '+str(tx_data)+Style.RESET_ALL)

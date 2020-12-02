@@ -12,6 +12,7 @@
 
 # Módulos a utilizar
 from db import db_wrapper
+from datetime import datetime
 from db.db_credentials import *
 import socket, argparse, bcrypt, os, pickle
 from colorama import Back, Fore, Style, init
@@ -44,7 +45,7 @@ class Service:
     try:
       self.sock.connect((host, int(port)))
       print(INSTRUCTIONS_STYLE+self.service_title+Style.RESET_ALL)
-      print(SUCCESS_STYLE+'* Servicio conectado correctamente al bus de servicios. Host: '+str(host)+' - Puerto: '+str(port)+Style.RESET_ALL)
+      print(SUCCESS_STYLE+'['+str(datetime.now().replace(microsecond=0))+'] Servicio conectado correctamente al bus de servicios. Host: '+str(host)+' - Puerto: '+str(port)+Style.RESET_ALL)
       # En caso de conectar exitosamente, se guarda como atributo el host y el puerto
       self.host = host
       self.port = port
@@ -68,7 +69,7 @@ class Service:
       
       if status.lower() == 'ok':
         # Se ha realizado correctamente el registro del servicio con el nombre
-        print(SUCCESS_STYLE+'* Servicio registrado correctamente en el bus de servicio con nombre "'+str(self.service_name)+'"'+Style.RESET_ALL)
+        print(SUCCESS_STYLE+'['+str(datetime.now().replace(microsecond=0))+'] Servicio registrado correctamente en el bus de servicio con nombre "'+str(self.service_name)+'"'+Style.RESET_ALL)
     
     except Exception as error:
       print(ERROR_STYLE+'[Error] Se ha producido el siguiente error al registrar el servicio:')
@@ -116,7 +117,7 @@ class Service:
         tx_length, tx_service, tx_data = self.split_tx(tx)
 
         print('')
-        print(INFO_STYLE+'Transacción recibida desde cliente'+Style.RESET_ALL)
+        print(INFO_STYLE+'['+str(datetime.now().replace(microsecond=0))+'] Transacción recibida desde cliente'+Style.RESET_ALL)
         print(INSTRUCTIONS_STYLE+'\t- Largo de la transacción: ' +str(tx_length)+' ('+str(int(tx_length))+')'+Style.RESET_ALL)
         print(INSTRUCTIONS_STYLE+'\t- Servicio invocado: '+str(tx_service)+Style.RESET_ALL)
         print(INSTRUCTIONS_STYLE+'\t- Datos recibidos: '+str(tx_data)+Style.RESET_ALL)
@@ -128,15 +129,22 @@ class Service:
           # Se verifica la opción de transacción enviada por el cliente
           tx_option = client_data['tx_option']
 
-          if tx_option == 0:
+          if tx_option == 0: # SOLICITUD DE MENÚ INTERNO 
+            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: SOLICITUD DE MENÚ INTERNO'+Style.RESET_ALL)
             # Se envía el menú interno al cliente
-            option_list = ['Ver lista de usuarios registrados', 'Ver detalle de usuario', 'Modificar usuario', 'Eliminar usuario', 'Volver']
+            option_list = ['Ver lista de usuarios registrados', 
+                            'Agregar nuevo usuario',
+                            'Ver detalle de usuario', 
+                            'Modificar usuario', 
+                            'Eliminar usuario', 
+                            'Volver']
             resp_data = {}
             resp_data['menu_title'] = 'Menú de gestión de usuarios'
             resp_data['menu_subtitle'] = 'Selecciona una de las opciones a continuación.'
             resp_data['menu_options'] = option_list
           
-          elif tx_option == 1:
+          elif tx_option == 1: # LISTA DE USUARIOS REGISTRADOS
+            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: LISTA DE USUARIOS REGISTRADOS'+Style.RESET_ALL)
             # Se envía la lista de usuarios registrados (ordenada por apellidos)
             sql_query = '''
               SELECT rut,nombres,apellidos,email,direccion
@@ -148,11 +156,45 @@ class Service:
             # Se genera el objeto a enviar
             resp_data = {}
             resp_data['users_list'] = cursor.fetchall()
+          
+          elif tx_option == 2: # REGISTRO DE NUEVO USUARIO
+            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: REGISTRO DE NUEVO USUARIO'+Style.RESET_ALL)
 
+            # Se transforman los datos del usuario a registrar, obtenidos desde el cliente
+            user_data = client_data['user_data']
+
+            # Se comprueba la existencia del usuario en la base de datos según RUT o correo
+            sql_query = '''
+              SELECT rut
+                FROM Usuarios
+                  WHERE rut = %s OR email = %s
+            '''
+            cursor = self.db.query(sql_query, (user_data['rut'], user_data['email']))
+            reg_count = len(cursor.fetchall())
+
+            if reg_count != 0:
+              # Se notifica el error al estar registrado el usuario según el rut o email recibido
+              error_msg = '[Error] El rut o correo electrónico ingresado se encuentran en uso.'
+              resp_data = {'success': False, 'error_notification': error_msg}
+
+            else:
+              # Se registra el usuario con los datos entregados
+              user_data['password'] = user_data['password'].decode('UTF-8')
+
+              sql_query = '''
+                INSERT INTO Usuarios (rut, nombres, apellidos, email, direccion, tipo_usuario, password)
+                  VALUES (%s, %s, %s, %s, %s, %s, %s)
+              '''
+              self.db.query(sql_query, tuple(user_data.values()))
+
+              # Luego de registrar, se notifica al cliente
+              success_msg = 'El usuario ha sido registrado correctamente.'
+              resp_data = {'success': True, 'success_notification': success_msg}
+            
         except Exception as error:
           print(ERROR_STYLE+error+Style.RESET_ALL)
           # Se genera el error y se envía al cliente
-          resp_data = {'auth_error': True, 'error_notification': str(error)}
+          resp_data = {'internal_error': True, 'error_notification': str(error)}
         
         # Se genera la transacción y se envía al cliente
         tx = self.generate_tx(str(resp_data)).encode(encoding='UTF-8')
