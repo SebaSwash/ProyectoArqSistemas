@@ -69,7 +69,7 @@ class Service:
       
       if status.lower() == 'ok':
         # Se ha realizado correctamente el registro del servicio con el nombre
-        print(SUCCESS_STYLE+'['+str(datetime.now().replace(microsecond=0))+'] Servicio registrado correctamente en el bus de servicio con nombre "'+str(self.service_name)+'"'+Style.RESET_ALL)
+        print(SUCCESS_STYLE+'['+str(datetime.now().replace(microsecond=0))+'] Servicio registrado correctamente en el bus de servicios con nombre "'+str(self.service_name)+'"'+Style.RESET_ALL)
     
     except Exception as error:
       print(ERROR_STYLE+'[Error] Se ha producido el siguiente error al registrar el servicio:')
@@ -190,6 +190,41 @@ class Service:
               # Luego de registrar, se notifica al cliente
               success_msg = 'El usuario ha sido registrado correctamente.'
               resp_data = {'success': True, 'success_notification': success_msg}
+          
+          elif tx_option == 3: # VER DETALLE DE USUARIO
+            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: VER DETALLE DE USUARIO'+Style.RESET_ALL)
+
+            # Se obtienen los datos del usuario y las posibles mascotas asociadas según el RUT indicado
+            sql_query = '''
+              SELECT rut, nombres, apellidos, email, direccion, tipo_usuario
+                FROM Usuarios
+                  WHERE rut = %s
+            '''
+            cursor = self.db.query(sql_query, (client_data['rut_usuario'],))
+            user_data = cursor.fetchone()
+
+            # Se modifica el atributo tipo usuario para mostrarlo como string
+            if user_data is not None:
+              user_data['tipo_usuario'] = 'Veterinario' if user_data['tipo_usuario'] == 1 else 'Cliente'
+
+            sql_query = '''
+              SELECT *
+                FROM Mascotas
+                  WHERE rut_propietario = %s
+            '''
+            cursor = self.db.query(sql_query, (client_data['rut_usuario'],))
+            pet_list = cursor.fetchall()
+
+            resp_data = {}
+
+            if user_data is None:
+              resp_data['success'] = False
+              resp_data['error_notification'] = 'No se ha encontrado información asociada a un usuario con el rut ingresado.'
+            
+            else:
+              resp_data['success'] = True
+              resp_data['user_data'] = user_data
+              resp_data['pet_list'] = pet_list
             
         except Exception as error:
           print(ERROR_STYLE+error+Style.RESET_ALL)
