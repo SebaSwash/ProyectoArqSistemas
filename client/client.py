@@ -34,7 +34,7 @@ USER_MANAGEMENTE_SERVICE_NAME = 'ums06'
 # Constantes para combinaciones de colores y estilos (Back -> color de fondo, Fore -> color de texto)
 INSTRUCTIONS_STYLE = Back.WHITE + Fore.BLACK
 ERROR_STYLE = Back.RED + Fore.WHITE
-WARNING_STYLE = Back.YELLOW + Fore.WHITE
+WARNING_STYLE = Back.YELLOW + Fore.BLACK
 INFO_STYLE = Back.BLUE + Fore.WHITE
 SUCCESS_STYLE = Back.GREEN + Fore.WHITE
 
@@ -277,6 +277,95 @@ class Client:
         except Exception as error:
           print(ERROR_STYLE+'[Error] Se ha producido el siguiente error al realizar el proceso de registro de usuario:'+Style.RESET_ALL)
           print(ERROR_STYLE+str(error)+Style.RESET_ALL)
+      
+      # ====================== OPCIÓN PARA VER DETALLE DE USUARIO (OP 3) ==============================
+      elif user_option == 2:
+        try:
+          # Se obtiene el RUT del usuario a verificar
+          print('\n'+INSTRUCTIONS_STYLE+'Revisar detalle de usuario .'+Style.RESET_ALL)
+          print('')
+          rut_usuario = input('Ingresa el RUT del usuario a consultar (sin guión ni puntos): ')
+          while len(rut_usuario) < 8 or len(rut_usuario) >= 10:
+            rut_usuario = input('Ingresa el RUT del usuario a consultar (sin guión ni puntos): ')
+          
+          # Se arma el objeto y se genera la transacción
+          data = {'tx_option': 3, 'rut_usuario': rut_usuario}
+
+          tx = self.generate_tx(USER_MANAGEMENTE_SERVICE_NAME, str(data))
+
+          # Se envía la transacción al servicio a través del bus de servicios
+          self.sock.send(tx.encode(encoding='UTF-8'))
+
+          # Se recibe la respuesta desde el servicio
+          recv_tx = self.sock.recv(4096)
+          # Se procesa la respuesta recibida desde el servicio a través del bus
+          tx_length, tx_service, tx_status, tx_data = self.split_recv_tx(recv_tx)
+
+          # Se verifica el estado de la transacción ('OK' o 'NK') según el bus de servicios.
+          if tx_status.lower() == 'nk':
+            # Se ha producido un error en la transferencia de la transacción
+            print(Style.RESET_ALL)
+            print(ERROR_STYLE+'[Error] Se ha producido un error en la transferencia de la transacción (NK).'+Style.RESET_ALL)
+          
+          # Se procesa los datos recibidos
+          recv_data = eval(tx_data.decode('UTF-8'))
+          
+          # Se verifica el flag de éxito
+          if not recv_data['success']:
+            # No se encontró el usuario con el rut ingresado.
+            # Se muestra el mensaje de error en pantalla.
+            print(ERROR_STYLE+'[Error]: '+recv_data['error_notification']+Style.RESET_ALL)
+          
+          else:
+            # Se encontró información asociada al usuario
+            user_data = recv_data['user_data']
+
+            print('\n'+INSTRUCTIONS_STYLE+'Información asociada al usuario'+Style.RESET_ALL)
+            print('')
+            print('- RUT: '+user_data['rut'])
+            print('- Nombre completo: '+user_data['nombres']+' '+user_data['apellidos'])
+            print('- Email: '+user_data['email'])
+            print('- Dirección: '+user_data['direccion'])
+            print('- Tipo de usuario: '+user_data['tipo_usuario'])
+
+            print('\n'+INSTRUCTIONS_STYLE+'Lista de mascotas asociadas al usuario'+Style.RESET_ALL)
+            print('')
+
+            if len(recv_data['pet_list']) == 0:
+              # El usuario no tiene mascotas asociadas
+              print(WARNING_STYLE+'* El usuario no tiene mascotas asociadas actualmente.')
+            
+            else:
+              # Se genera la tabla con la información de cada mascota
+              pet_table = PrettyTable()
+
+              # Se agregan las columnas, según los atributos recibidos
+              pet_table.field_names = list(recv_data['pet_list'][0].keys())
+                
+              # Se agregan las filas en la tabla según cada usuario registrado
+              for pet in recv_data['pet_list']:
+                # Se transforma el diccionario en una lista con los valores de la información del usuario
+                pet_table.add_row(list(pet.values()))
+                
+              # Se imprime en la terminal la tabla generada
+              print(pet_table)
+
+
+        except Exception as error:
+          print(ERROR_STYLE+'[Error] Se ha producido el siguiente error al realizar el proceso de revisión de detalle de usuario:'+Style.RESET_ALL)
+          print(ERROR_STYLE+str(error)+Style.RESET_ALL)
+      
+      # ====================== OPCIÓN PARA MODIFICAR USUARIO (OP 4) ==============================
+      elif user_option == 3:
+        pass
+
+      # ====================== OPCIÓN PARA ELIMINAR USUARIO (OP 5) ==============================
+      elif user_option == 4:
+        pass
+
+      # ====================== OPCIÓN PARA VOLVER AL MENÚ DE OPCIONES (OP 6) ==============================
+      elif user_option == 5:
+        break
 
       input('\n'+INSTRUCTIONS_STYLE+'Presiona ENTER para continuar'+Style.RESET_ALL)
       clear_screen()
@@ -284,41 +373,43 @@ class Client:
   # Método para menú y opciones internas de cada servicio
   def internal_menu_options(self, user_data):
     clear_screen()
-    menu = ConsoleMenu('Hola nuevamente, '+str(user_data['nombres'])+' '+str(user_data['apellidos']), 'Selecciona una de las opciones a continuación.')
-    
-    # Se diferencia el menú según el tipo de usuario
 
-    if user_data['tipo_usuario'] == 1:
-      # El usuario corresponde a un veterinario
-      menu.append_item(SelectionItem('Sección de usuarios',0))
-      menu.append_item(SelectionItem('Sección de mascotas',1))
-      menu.append_item(SelectionItem('Sección de revisiones de mascotas',2))
-      menu.append_item(SelectionItem('Cerrar sesión',3))
-    
-    elif user_data['tipo_usuario'] == 2:
-      # El usuario corresponde a un cliente
-      menu.append_item(SelectionItem('Cerrar sesión',3))
-    
-    menu.show(False) # False evita que se muestra la opción de 'exit' que viene por defecto
+    while True:
+      menu = ConsoleMenu('Hola nuevamente, '+str(user_data['nombres'])+' '+str(user_data['apellidos']), 'Selecciona una de las opciones a continuación.')
+      
+      # Se diferencia el menú según el tipo de usuario
 
-    user_option = menu.selected_option
+      if user_data['tipo_usuario'] == 1:
+        # El usuario corresponde a un veterinario
+        menu.append_item(SelectionItem('Sección de usuarios',0))
+        menu.append_item(SelectionItem('Sección de mascotas',1))
+        menu.append_item(SelectionItem('Sección de revisiones de mascotas',2))
+        menu.append_item(SelectionItem('Cerrar sesión',3))
+      
+      elif user_data['tipo_usuario'] == 2:
+        # El usuario corresponde a un cliente
+        menu.append_item(SelectionItem('Cerrar sesión',3))
+      
+      menu.show(False) # False evita que se muestra la opción de 'exit' que viene por defecto
 
-    if user_option == 0 and user_data['tipo_usuario'] == 1: # ======================= Sección de usuarios
+      user_option = menu.selected_option
 
-      # Se muestra el menú con las opciones internas del servicio de gestión de usuarios
-      self.user_management_gui()
+      if user_option == 0 and user_data['tipo_usuario'] == 1: # ======================= Sección de usuarios
 
-    elif user_option == 1 and user_data['tipo_usuario'] == 1: # Sección de mascotas
-      return
+        # Se muestra el menú con las opciones internas del servicio de gestión de usuarios
+        self.user_management_gui()
 
-    elif user_option == 2 and user_data['tipo_usuario'] == 1: # Sección de revisiones de mascotas
-      return
+      elif user_option == 1 and user_data['tipo_usuario'] == 1: # Sección de mascotas
+        return
 
-    elif user_option == 3 and user_data['tipo_usuario'] == 1: # Cerrar sesión
-      return
-    
-    elif user_option == 3 and user_data['tipo_usuario'] == 2: # Cerrar sesión
-      return
+      elif user_option == 2 and user_data['tipo_usuario'] == 1: # Sección de revisiones de mascotas
+        return
+
+      elif user_option == 3 and user_data['tipo_usuario'] == 1: # Cerrar sesión
+        return
+      
+      elif user_option == 3 and user_data['tipo_usuario'] == 2: # Cerrar sesión
+        return
   
   # Método para menú y opción de autentificación
   def user_menu_options(self):

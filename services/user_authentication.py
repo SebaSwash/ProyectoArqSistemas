@@ -69,7 +69,7 @@ class Service:
       
       if status.lower() == 'ok':
         # Se ha realizado correctamente el registro del servicio con el nombre
-        print(SUCCESS_STYLE+'['+str(datetime.now().replace(microsecond=0))+'] Servicio registrado correctamente en el bus de servicio con nombre "'+str(self.service_name)+'"'+Style.RESET_ALL)
+        print(SUCCESS_STYLE+'['+str(datetime.now().replace(microsecond=0))+'] Servicio registrado correctamente en el bus de servicios con nombre "'+str(self.service_name)+'"'+Style.RESET_ALL)
     
     except Exception as error:
       print(ERROR_STYLE+'[Error] Se ha producido el siguiente error al registrar el servicio:')
