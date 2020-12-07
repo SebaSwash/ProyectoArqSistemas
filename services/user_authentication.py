@@ -65,7 +65,7 @@ class Service:
       tx = self.generate_tx_length(len(tx_cmd)) + tx_cmd
 
       self.sock.send(tx.encode(encoding='UTF-8'))
-      status = self.sock.recv(4096).decode('UTF-8')[10:12] # 'OK' (exitoso) o 'NK' (fallido)
+      status = self.sock.recv(10000).decode('UTF-8')[10:12] # 'OK' (exitoso) o 'NK' (fallido)
       
       if status.lower() == 'ok':
         # Se ha realizado correctamente el registro del servicio con el nombre
@@ -104,7 +104,7 @@ class Service:
   def run(self):
     # El servicio se mantiene escuchando a través del socket
     while True:
-      tx = self.sock.recv(4096)
+      tx = self.sock.recv(10000)
 
       if not tx:
         # Se cierra el servicio si no se reciben datos desde el socket

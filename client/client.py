@@ -82,6 +82,24 @@ class Client:
 
     return (tx_length, tx_service, tx_status, tx_data)
   
+  # Método para obtener y procesar los datos recibidos desde el servicio por medio del bus
+  def recv_data(self):
+    # Se obtiene el resultado de la transacción desde el servicio
+    recv_tx = self.sock.recv(10000)
+
+    # Se procesa la respuesta recibida desde el servicio a través del bus
+    tx_length, tx_service, tx_status, tx_data = self.split_recv_tx(recv_tx)
+
+    # Se verifica el estado de la transacción ('OK' o 'NK') según el bus de servicios.
+    if tx_status.lower() == 'nk':
+      # Se ha producido un error en la transferencia de la transacción
+      print(Style.RESET_ALL)
+      print(ERROR_STYLE+'[Error] Se ha producido un error en la transferencia de la transacción (NK).'+Style.RESET_ALL)
+      return False, None
+    
+    else:
+      return True, tx_data
+  
   def user_management_gui(self):
 
      # Se envía la solicitud al servicio de usuarios para obtener el menú interno
@@ -92,7 +110,7 @@ class Client:
     self.sock.send(tx.encode(encoding='UTF-8'))
 
     try:
-      recv_tx = self.sock.recv(4096).decode('UTF-8')
+      recv_tx = self.sock.recv(10000).decode('UTF-8')
       tx_length, tx_service, tx_status, tx_data = self.split_recv_tx(recv_tx)
 
       # Se verifica el estado de la transacción ('OK' o 'NK') según el bus de servicios.
@@ -131,16 +149,12 @@ class Client:
         # Se envía la solicitud al servicio y se verifica si se envía devuelta la lista o una notificación de error
         self.sock.send(tx.encode(encoding='UTF-8'))
 
-        recv_tx = self.sock.recv(4096)
-        # Se procesa la respuesta recibida desde el servicio a través del bus
-        tx_length, tx_service, tx_status, tx_data = self.split_recv_tx(recv_tx)
+        tx_ok, tx_data = self.recv_data()
 
-        # Se verifica el estado de la transacción ('OK' o 'NK') según el bus de servicios.
-        if tx_status.lower() == 'nk':
-          # Se ha producido un error en la transferencia de la transacción
-          print(Style.RESET_ALL)
-          print(ERROR_STYLE+'[Error] Se ha producido un error en la transferencia de la transacción (NK).'+Style.RESET_ALL)
-            
+        # Se omite el siguiente procesamiento, en caso de que hayan problemas con la recepción de la transacción
+        if not tx_ok:
+          continue
+          
         # Se transforma el diccionario recibido y se procesa
         try:
           data = eval(tx_data.decode('UTF-8'))
@@ -242,16 +256,11 @@ class Client:
           # Una vez generada la transacción, se envía al servicio a través del bus de servicios
           self.sock.send(tx.encode(encoding='UTF-8'))
 
-          # Se recibe la respuesta desde el servicio
-          recv_tx = self.sock.recv(4096)
-          # Se procesa la respuesta recibida desde el servicio a través del bus
-          tx_length, tx_service, tx_status, tx_data = self.split_recv_tx(recv_tx)
+          tx_ok, tx_data = self.recv_data()
 
-          # Se verifica el estado de la transacción ('OK' o 'NK') según el bus de servicios.
-          if tx_status.lower() == 'nk':
-            # Se ha producido un error en la transferencia de la transacción
-            print(Style.RESET_ALL)
-            print(ERROR_STYLE+'[Error] Se ha producido un error en la transferencia de la transacción (NK).'+Style.RESET_ALL)
+          # Se omite el siguiente procesamiento, en caso de que hayan problemas con la recepción de la transacción
+          if not tx_ok:
+            continue
           
           # Se procesa los datos recibidos
           recv_data = eval(tx_data.decode('UTF-8'))
@@ -282,7 +291,7 @@ class Client:
       elif user_option == 2:
         try:
           # Se obtiene el RUT del usuario a verificar
-          print('\n'+INSTRUCTIONS_STYLE+'Revisar detalle de usuario .'+Style.RESET_ALL)
+          print('\n'+INSTRUCTIONS_STYLE+'Revisar detalle de usuario'+Style.RESET_ALL)
           print('')
           rut_usuario = input('Ingresa el RUT del usuario a consultar (sin guión ni puntos): ')
           while len(rut_usuario) < 8 or len(rut_usuario) >= 10:
@@ -296,16 +305,11 @@ class Client:
           # Se envía la transacción al servicio a través del bus de servicios
           self.sock.send(tx.encode(encoding='UTF-8'))
 
-          # Se recibe la respuesta desde el servicio
-          recv_tx = self.sock.recv(4096)
-          # Se procesa la respuesta recibida desde el servicio a través del bus
-          tx_length, tx_service, tx_status, tx_data = self.split_recv_tx(recv_tx)
+          tx_ok, tx_data = self.recv_data()
 
-          # Se verifica el estado de la transacción ('OK' o 'NK') según el bus de servicios.
-          if tx_status.lower() == 'nk':
-            # Se ha producido un error en la transferencia de la transacción
-            print(Style.RESET_ALL)
-            print(ERROR_STYLE+'[Error] Se ha producido un error en la transferencia de la transacción (NK).'+Style.RESET_ALL)
+          # Se omite el siguiente procesamiento, en caso de que hayan problemas con la recepción de la transacción
+          if not tx_ok:
+            continue
           
           # Se procesa los datos recibidos
           recv_data = eval(tx_data.decode('UTF-8'))
@@ -314,6 +318,7 @@ class Client:
           if not recv_data['success']:
             # No se encontró el usuario con el rut ingresado.
             # Se muestra el mensaje de error en pantalla.
+            print('')
             print(ERROR_STYLE+'[Error]: '+recv_data['error_notification']+Style.RESET_ALL)
           
           else:
@@ -357,11 +362,134 @@ class Client:
       
       # ====================== OPCIÓN PARA MODIFICAR USUARIO (OP 4) ==============================
       elif user_option == 3:
-        pass
+        try:
+          print('\n'+INSTRUCTIONS_STYLE+'Modificación de usuario'+Style.RESET_ALL)
+          print('')
+          rut_usuario = input('Ingresa el RUT del usuario a modificar (sin guión ni puntos): ')
+
+          while len(rut_usuario) < 8 or len(rut_usuario) >= 10:
+            rut_usuario = input('Ingresa el RUT del usuario a modificar (sin guión ni puntos): ')
+          
+          # Se envía el rut del usuario al servicio para verificar y obtener los datos del mismo
+          # * Sub option permite distinguir dentro de la misma funcionalidad de modificar, la opción de 
+          # retorno de los datos del usuario según su RUT
+          data = {'tx_option': 4, 'tx_sub_option': 1 , 'rut_usuario': rut_usuario}
+          tx = self.generate_tx(USER_MANAGEMENTE_SERVICE_NAME, str(data))
+
+          self.sock.send(tx.encode(encoding='UTF-8'))
+
+          tx_ok, tx_data = self.recv_data()
+
+          # Se omite el siguiente procesamiento, en caso de que hayan problemas con la recepción de la transacción
+          if not tx_ok:
+            continue
+
+          data = eval(tx_data.decode('UTF-8'))
+
+          print('')
+          if data['user_exists']:
+            user_data = data['user_data']
+            # El usuario con el RUT ingresado se encuentra registrado
+            print(INSTRUCTIONS_STYLE+'Información actual del usuario'+Style.RESET_ALL)
+            print('')
+            print('- RUT: '+user_data['rut'])
+            print('- Nombre completo: '+user_data['nombres']+' '+user_data['apellidos'])
+            print('- Email: '+user_data['email'])
+            print('- Dirección: '+user_data['direccion'])
+            print('- Tipo de usuario: '+user_data['tipo_usuario'])
+
+            print('')
+            print(INSTRUCTIONS_STYLE+'A continuación podrás modificar los campos del usuario.')
+            print('En caso de querer mantener alguno de los datos, presiona ENTER sin rellenarlo.'+Style.RESET_ALL)
+            print('')
+
+            data = {'tx_option': 4, 'tx_sub_option': 2, 'user_data': {}}
+            data['user_data']['rut_usuario'] = rut_usuario
+
+            # Se despliegan los inputs a medida que se mantienen o modifican
+            for attr in user_data.keys():
+
+              if attr == 'rut':
+                continue
+
+              new_attr = input('- '+str(attr)+': ')
+
+              if attr == 'tipo_usuario':
+                while new_attr not in ['1', '2', '']:
+                  new_attr = input('- '+str(attr)+': ')
+
+              if len(new_attr) != 0:
+                # Se registra el atributo cambiado en el objeto a enviar
+                data['user_data'][attr] = new_attr
+              
+              else:
+                # Se continúa en caso de que no se haya decidido modificar el campo
+                continue
+            
+            # Se genera y envía la transacción al servicio para realizar la modificación
+            tx = self.generate_tx(USER_MANAGEMENTE_SERVICE_NAME, str(data))
+            
+            self.sock.send(tx.encode(encoding='UTF-8'))
+
+            # Se recibe la notificación de respuesta desde el servicio
+            tx_ok, tx_data = self.recv_data()
+
+            # Se omite el siguiente procesamiento, en caso de que hayan problemas con la recepción de la transacción
+            if not tx_ok:
+              continue
+
+            # Se verifica el estado de la modificación (si se modificó o hubo un error) notificando al usuario
+            tx_data = eval(tx_data.decode('UTF-8'))
+
+            print('')
+            if tx_data['mod_error']:
+              print(ERROR_STYLE+'[Error] '+tx_data['error_notification']+Style.RESET_ALL)
+            
+            else:
+              print(SUCCESS_STYLE+tx_data['success_notification']+Style.RESET_ALL)
+
+          else:
+            # No se ha encontrado el usuario con el RUT registrado
+            print(ERROR_STYLE+'[Error] No se ha encontrado un usuario registrado según el RUT ingresado.'+Style.RESET_ALL)
+
+        except Exception as error:
+          print(ERROR_STYLE+'[Error] Se ha producido el siguiente error al realizar el proceso de revisión de modificación de usuario:'+Style.RESET_ALL)
+          print(ERROR_STYLE+str(error)+Style.RESET_ALL)
 
       # ====================== OPCIÓN PARA ELIMINAR USUARIO (OP 5) ==============================
       elif user_option == 4:
-        pass
+        try:
+          print('\n'+INSTRUCTIONS_STYLE+'Eliminación de usuario'+Style.RESET_ALL)
+          print('')  
+
+          rut_usuario = input('Ingresa el RUT del usuario a eliminar: ')
+
+          data = {'tx_option': 5, 'rut_usuario': rut_usuario}
+
+          # Se envía la transacción al servicio
+          tx = self.generate_tx(USER_MANAGEMENTE_SERVICE_NAME, str(data))
+
+          self.sock.send(tx.encode(encoding='UTF-8'))
+
+          # Se recibe la notificación de éxito o error en la eliminación
+          tx_ok, tx_data = self.recv_data()
+
+          # Se omite el siguiente procesamiento, en caso de que hayan problemas con la recepción de la transacción
+          if not tx_ok:
+            continue
+
+          tx_data = eval(tx_data.decode('UTF-8'))
+
+          print('')
+          if tx_data['delete_error']:
+            print(ERROR_STYLE+'[Error] '+tx_data['error_notification']+Style.RESET_ALL)
+            
+          else:
+            print(SUCCESS_STYLE+tx_data['success_notification']+Style.RESET_ALL)
+        
+        except Exception as error:
+          print(ERROR_STYLE+'[Error] Se ha producido el siguiente error al realizar el proceso de eliminación de usuario:'+Style.RESET_ALL)
+          print(ERROR_STYLE+str(error)+Style.RESET_ALL)
 
       # ====================== OPCIÓN PARA VOLVER AL MENÚ DE OPCIONES (OP 6) ==============================
       elif user_option == 5:
@@ -437,8 +565,7 @@ class Client:
       self.sock.send(tx.encode(encoding='UTF-8'))
 
       # Se obtiene el resultado de la transacción desde el servicio
-      # En caso de éxito, se reciben los datos personales del usuario y en caso de error, se obtiene una notificación de error.
-      recv_tx = self.sock.recv(4096)
+      recv_tx = self.sock.recv(10000)
 
       try:
         recv_tx = recv_tx.decode('UTF-8')

@@ -24,6 +24,11 @@ init()
 def clear_screen():
   os.system('cls' if os.name == 'nt' else 'clear')
 
+# Función para reemplazar últimos caracteres en strings
+def replace_last(source_string, replace_what, replace_with):
+  head, _sep, tail = source_string.rpartition(replace_what)
+  return head + replace_with + tail
+
 # Constantes para combinaciones de colores y estilos (Back -> color de fondo, Fore -> color de texto)
 INSTRUCTIONS_STYLE = Back.WHITE + Fore.BLACK
 ERROR_STYLE = Back.RED + Fore.WHITE
@@ -225,6 +230,103 @@ class Service:
               resp_data['success'] = True
               resp_data['user_data'] = user_data
               resp_data['pet_list'] = pet_list
+          
+          elif tx_option == 4: # MODIFICAR INFORMACIÓN DE USUARIO
+            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: MODIFICAR USUARIO'+Style.RESET_ALL)
+
+            # Se obtiene la sub-transacción
+            if client_data['tx_sub_option'] == 1: # Validación de RUT y obtención de datos del usuario (en caso de que exista)
+              sql_query = '''
+                SELECT rut, nombres, apellidos, email, direccion, tipo_usuario
+                  FROM Usuarios
+                    WHERE rut = %s
+              '''
+              cursor = self.db.query(sql_query, (client_data['rut_usuario'],))
+              user_data = cursor.fetchone()
+
+              # Se modifica el atributo tipo usuario para mostrarlo como string
+              if user_data is not None:
+                user_data['tipo_usuario'] = 'Veterinario' if user_data['tipo_usuario'] == 1 else 'Cliente'
+                # Se genera la respuesta (exitosa)
+                resp_data = {'user_exists': True, 'user_data': user_data}
+              
+              else:
+                # Se genera la respuesta (no encontrado)
+                resp_data = {'user_exists': False}
+              
+            elif client_data['tx_sub_option'] == 2: # Modificación de información de usuario
+              # Se genera el substring para realizar la consulta SQL (SET attr1=a, attr2=b, ...)
+              query_replace_str = ''
+              user_data = client_data['user_data']
+
+              # Se verifica, en caso de que se haya decidido modificar el correo
+              if 'email' in user_data.keys():
+                sql_query = '''
+                  SELECT COUNT(*) AS cantidad_registros
+                    FROM Usuarios
+                      WHERE rut != %s AND email = %s
+                '''
+                cursor = self.db.query(sql_query, (user_data['rut_usuario'], user_data['email']))
+                cantidad_registros = cursor.fetchone()['cantidad_registros']
+
+                if cantidad_registros != 0:
+                  # El correo seleccionado para modificar ya se encuentra en uso
+                  resp_data = {'mod_error': True, 'error_notification': 'El correo electrónico seleccionado ya se encuentra en uso.'}
+                  # Se genera la transacción y se envía al cliente
+                  tx = self.generate_tx(str(resp_data)).encode(encoding='UTF-8')
+
+                  self.sock.send(tx)
+                  continue
+          
+
+              for attr in user_data.keys():
+
+                if attr == 'rut_usuario':
+                  continue
+
+                replace = str(attr)+' = %s, '
+                query_replace_str += replace
+              
+              # Se reemplaza la última ',' de la cadena de atributos a reemplazar
+              query_replace_str = replace_last(query_replace_str, ',', '')
+
+              rut_usuario = user_data['rut_usuario']
+              del user_data['rut_usuario']
+
+              # Se modifica el registro del usuario
+              sql_query = 'UPDATE Usuarios SET '+query_replace_str+' WHERE rut = %s'
+              
+              values = tuple(user_data.values())
+              values += (rut_usuario,)
+
+              self.db.query(sql_query, values)
+
+              resp_data = {'mod_error': False, 'success_notification': 'El usuario ha sido modificado correctamente.'}
+          
+          elif tx_option == 5: # ELIMINACIÓN DE USUARIO
+            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: ELIMINACIÓN DE USUARIO'+Style.RESET_ALL)
+
+            # Se revisa si existe algún usuario registrado con el RUT ingresado
+            sql_query = '''
+              SELECT COUNT(*) AS cantidad_registros
+                FROM Usuarios
+                  WHERE rut = %s
+            '''
+            cursor = self.db.query(sql_query, (client_data['rut_usuario'],))
+            cantidad_registros = cursor.fetchone()['cantidad_registros']
+
+            if cantidad_registros == 0:
+              # No existe un usuario registrado con el RUT ingresado
+              resp_data = {'delete_error': True, 'error_notification': 'No se ha encontrado un usuario registrado según el RUT ingresado.'}
+            
+            else:
+              # Se elimina al usuario con el RUT asociado
+              sql_query = '''
+                DELETE FROM Usuarios
+                  WHERE rut = %s
+              '''
+              self.db.query(sql_query, (client_data['rut_usuario'],))
+              resp_data = {'delete_error': False, 'success_notification': 'El usuario seleccionado ha sido eliminado correctamente.'}
             
         except Exception as error:
           print(ERROR_STYLE+error+Style.RESET_ALL)
