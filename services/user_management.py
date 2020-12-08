@@ -70,7 +70,7 @@ class Service:
       tx = self.generate_tx_length(len(tx_cmd)) + tx_cmd
 
       self.sock.send(tx.encode(encoding='UTF-8'))
-      status = self.sock.recv(4096).decode('UTF-8')[10:12] # 'OK' (exitoso) o 'NK' (fallido)
+      status = self.sock.recv(10000).decode('UTF-8')[10:12] # 'OK' (exitoso) o 'NK' (fallido)
       
       if status.lower() == 'ok':
         # Se ha realizado correctamente el registro del servicio con el nombre
@@ -109,7 +109,7 @@ class Service:
   def run(self):
     # El servicio se mantiene escuchando a través del socket
     while True:
-      tx = self.sock.recv(4096)
+      tx = self.sock.recv(10000)
 
       if not tx:
         # Se cierra el servicio si no se reciben datos desde el socket
@@ -135,7 +135,7 @@ class Service:
           tx_option = client_data['tx_option']
 
           if tx_option == 0: # SOLICITUD DE MENÚ INTERNO 
-            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: SOLICITUD DE MENÚ INTERNO'+Style.RESET_ALL)
+            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: Solicitud de menú interno'+Style.RESET_ALL)
             # Se envía el menú interno al cliente
             option_list = ['Ver lista de usuarios registrados', 
                             'Agregar nuevo usuario',
@@ -149,7 +149,7 @@ class Service:
             resp_data['menu_options'] = option_list
           
           elif tx_option == 1: # LISTA DE USUARIOS REGISTRADOS
-            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: LISTA DE USUARIOS REGISTRADOS'+Style.RESET_ALL)
+            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: Lista de usuarios registrados'+Style.RESET_ALL)
             # Se envía la lista de usuarios registrados (ordenada por apellidos)
             sql_query = '''
               SELECT rut,nombres,apellidos,email,direccion
@@ -163,7 +163,7 @@ class Service:
             resp_data['users_list'] = cursor.fetchall()
           
           elif tx_option == 2: # REGISTRO DE NUEVO USUARIO
-            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: REGISTRO DE NUEVO USUARIO'+Style.RESET_ALL)
+            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: Registro de nuevo usuario'+Style.RESET_ALL)
 
             # Se transforman los datos del usuario a registrar, obtenidos desde el cliente
             user_data = client_data['user_data']
@@ -197,7 +197,7 @@ class Service:
               resp_data = {'success': True, 'success_notification': success_msg}
           
           elif tx_option == 3: # VER DETALLE DE USUARIO
-            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: VER DETALLE DE USUARIO'+Style.RESET_ALL)
+            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: Ver detalle de usuario'+Style.RESET_ALL)
 
             # Se obtienen los datos del usuario y las posibles mascotas asociadas según el RUT indicado
             sql_query = '''
@@ -213,7 +213,7 @@ class Service:
               user_data['tipo_usuario'] = 'Veterinario' if user_data['tipo_usuario'] == 1 else 'Cliente'
 
             sql_query = '''
-              SELECT *
+              SELECT id, nombre
                 FROM Mascotas
                   WHERE rut_propietario = %s
             '''
@@ -232,7 +232,7 @@ class Service:
               resp_data['pet_list'] = pet_list
           
           elif tx_option == 4: # MODIFICAR INFORMACIÓN DE USUARIO
-            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: MODIFICAR USUARIO'+Style.RESET_ALL)
+            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: Modificar información de usuario'+Style.RESET_ALL)
 
             # Se obtiene la sub-transacción
             if client_data['tx_sub_option'] == 1: # Validación de RUT y obtención de datos del usuario (en caso de que exista)
@@ -304,7 +304,7 @@ class Service:
               resp_data = {'mod_error': False, 'success_notification': 'El usuario ha sido modificado correctamente.'}
           
           elif tx_option == 5: # ELIMINACIÓN DE USUARIO
-            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: ELIMINACIÓN DE USUARIO'+Style.RESET_ALL)
+            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: Eliminación de usuario'+Style.RESET_ALL)
 
             # Se revisa si existe algún usuario registrado con el RUT ingresado
             sql_query = '''
