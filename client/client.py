@@ -28,10 +28,16 @@ init()
 def clear_screen():
   os.system('cls' if os.name == 'nt' else 'clear')
 
+# Función para reemplazar últimos caracteres en strings
+def replace_last(source_string, replace_what, replace_with):
+  head, _sep, tail = source_string.rpartition(replace_what)
+  return head + replace_with + tail
+
 # Constantes con nombres de servicios a utilizar (06 corresponde al número de grupo de proyecto)
 USER_AUTH_SERVICE_NAME = 'uas06'
 USER_MANAGEMENTE_SERVICE_NAME = 'ums06'
 PET_MANAGEMENT_SERVICE_NAME = 'pms06'
+PET_REVIEWS_SERVICE_NAME = 'prs06'
 
 # Constantes para combinaciones de colores y estilos (Back -> color de fondo, Fore -> color de texto)
 INSTRUCTIONS_STYLE = Back.WHITE + Fore.BLACK
@@ -51,6 +57,8 @@ class Client:
       # En caso de conectar exitosamente, se guarda como atributo el host y puerto
       self.host = host
       self.port = port
+
+      self.session = {} # Diccionario para almacenar datos del usuario en sesión
 
       self.run() # Inicio de la ejecución del proceso cliente
     
@@ -861,6 +869,278 @@ class Client:
 
       input('\n'+INSTRUCTIONS_STYLE+'Presiona ENTER para continuar'+Style.RESET_ALL)
       clear_screen()
+  
+  # Método para menú y opciones del servicio de revisiones de mascotas
+  def pet_reviews_gui(self):
+    # Se instancia el objeto del menú
+    menu = ConsoleMenu('Menú de revisiones de mascotas', 'Selecciona una de las opciones a continuación.')
+    
+    menu.append_item(SelectionItem('Registrar nueva revisión', 0))
+    menu.append_item(SelectionItem('Ver detalle de revisiones registradas', 1))
+    menu.append_item(SelectionItem('Modificar revisión', 2))
+    menu.append_item(SelectionItem('Eliminar revisión', 3))
+    menu.append_item(SelectionItem('Volver', 4))
+
+    while True:
+      menu.show(False)
+      user_option = menu.selected_option
+
+      if user_option == 0: # ============= Registrar nueva revisión
+        print(INSTRUCTIONS_STYLE+'Registro de revisión de mascota'+Style.RESET_ALL)
+        print('')
+
+        pet_id = input('Ingresa el ID de la mascota: ')
+
+        # Se genera la transacción para validar el ID de la mascota en el servicio de revisiones
+        data = {'tx_option': 1, 'tx_sub_option': 1, 'pet_id': pet_id}
+        
+        tx = self.generate_tx(PET_REVIEWS_SERVICE_NAME, str(data))
+
+        self.sock.send(tx.encode(encoding='UTF-8'))
+
+        tx_ok, tx_data = self.recv_data()
+
+        if tx_ok:
+          data = eval(tx_data.decode('UTF-8'))
+
+          if data['pet_exists']:
+            # La mascota se encuentra registrada según el ID de mascota ingresado.
+            review = {'tx_option': 1 , 'tx_sub_option': 2, 'review_data': {}}
+
+            clear_screen()
+            print(INSTRUCTIONS_STYLE+'Datos del propietario'+Style.RESET_ALL)
+            print('')
+            print('- RUT: '+data['pet_data']['rut_propietario'])
+            print('- Nombre: '+data['pet_data']['nombres_propietario']+' '+data['pet_data']['apellidos_propietario'])
+            print('')
+
+            print(INSTRUCTIONS_STYLE+'Ficha de la mascota'+Style.RESET_ALL)
+            print('')
+            print('- Nombre: '+data['pet_data']['nombre'])
+            print('- Especie: '+data['pet_data']['especie'])
+            print('- Sexo: '+data['pet_data']['sexo'])
+            print('- Fecha de nacimiento: '+data['pet_data']['fecha_nacimiento'])
+            print('- Raza: '+data['pet_data']['raza'])
+            print('- Tamaño: '+data['pet_data']['tamano'])
+            print('- Peso (kg): '+str(data['pet_data']['peso']))
+            print('- Color: '+data['pet_data']['tamano'])
+            print('- Patrón de color: '+data['pet_data']['patron_color'])
+            print('- Esterilizado: '+ 'SI' if data['pet_data']['esterilizado'] else 'NO')
+            print('- Residencia: '+data['pet_data']['residencia'])
+
+            print('')
+            print(INSTRUCTIONS_STYLE+'Formulario de revisión'+Style.RESET_ALL)
+            print(INSTRUCTIONS_STYLE+'A continuación, rellena el formulario de la revisión a registrar.'+Style.RESET_ALL)
+            print('')
+            print(WARNING_STYLE+'* La fecha y hora de revisión serán registradas automáticamente.'+Style.RESET_ALL)
+            print('')
+
+            print('- Motivo de revisión (Escribe "END" para salir del campo de texto): ')
+            print('')
+
+            motivo_revision = ''
+            line = ''
+            while True:
+              line = input('> ')
+
+              if line == 'END':
+                break
+
+              motivo_revision += line + '\n'
+            
+            review['review_data']['motivo_revision'] = replace_last(motivo_revision, '\n', '')
+
+            print('')
+            print('- Diagnóstico (Escribe "END" para salir del campo de texto): ')
+            print('')
+
+            diagnostico = ''
+            line = ''
+            while True:
+              line = input('> ')
+
+              if line == 'END':
+                break
+
+              diagnostico += line + '\n'
+            
+            review['review_data']['diagnostico'] = replace_last(diagnostico, '\n', '')
+
+            # Se adjunta los demás datos
+            review['review_data']['id_mascota'] = pet_id
+            review['review_data']['rut_veterinario'] = self.session['user_data']['rut']
+            review['review_data']['fecha_revision'] = str(datetime.now().replace(microsecond=0))
+
+            print('')
+            print(INSTRUCTIONS_STYLE+'Resumen de revisión'+Style.RESET_ALL)
+            print('')
+
+            print('- ID de mascota: '+str(review['review_data']['id_mascota']))
+            print('- RUT de veterinario: '+review['review_data']['rut_veterinario'])
+            print('- Fecha de la revisión: '+review['review_data']['fecha_revision'])
+            print('- Motivo de la revisión:')
+            print('')
+            print('.............................................................................................................')
+            print('')
+            print(review['review_data']['motivo_revision'])
+            print('')
+            print('.............................................................................................................')
+            print('')
+            print('- Diagnóstico:')
+            print('')
+            print('.............................................................................................................')
+            print('')
+            print(review['review_data']['diagnostico'])
+            print('')
+            print('.............................................................................................................')
+            print('')
+          
+            conf_op = input('¿Deseas registrar la revisión en la ficha de la mascota? [S/N]: ')
+
+            while conf_op.lower() not in ['s', 'n']:
+              conf_op = input('¿Deseas registrar la revisión en la ficha de la mascota? [S/N]: ')
+            
+            if conf_op.lower() == 's':
+              # Se confirma el formulario de revisión y se envía al servicio para registrarlo
+              tx = self.generate_tx(PET_REVIEWS_SERVICE_NAME, str(review))
+
+              self.sock.send(tx.encode(encoding='UTF-8'))
+
+              tx_ok, tx_data = self.recv_data()
+
+              if tx_ok:
+                data = eval(tx_data.decode('UTF-8'))
+
+                if data['success']:
+                  print('')
+                  print(SUCCESS_STYLE+data['success_notification']+Style.RESET_ALL)
+
+          else:
+            # La mascota no se encuentra registrada.
+            print('')
+            print(ERROR_STYLE+'[Error] '+data['error_notification']+Style.RESET_ALL)
+      
+      elif user_option == 1: # ============= Ver detalle de revisiones registradas
+        print(INSTRUCTIONS_STYLE+'Detalles de revisiones registradas'+Style.RESET_ALL)
+        print('')
+
+        pet_id = input('Ingresa el ID de la mascota: ')
+
+        # Se genera la transacción para validar el ID de la mascota en el servicio de revisiones
+        data = {'tx_option': 2, 'tx_sub_option': 1, 'pet_id': pet_id}
+        
+        tx = self.generate_tx(PET_REVIEWS_SERVICE_NAME, str(data))
+
+        self.sock.send(tx.encode(encoding='UTF-8'))
+
+        tx_ok, tx_data = self.recv_data()
+
+        if tx_ok:
+          data = eval(tx_data.decode('UTF-8'))
+
+          if data['pet_exists']:
+            # La ficha de mascota se encuentra registrada.
+            
+            # Se muestran las revisiones disponibles y se notifica en caso de que no tenga.
+            if len(data['review_list']) != 0:
+              review_table = PrettyTable()
+              review_id_list = [] # Lista para almacenar los IDs de revisiones pertenecientes a la mascota consultada.
+
+              # Se agregan las columnas, según los atributos recibidos.
+              review_table.field_names = list(data['review_list'][0].keys())
+                
+              # Se agregan las filas en la tabla según cada usuario registrado
+              for review in data['review_list']:
+                # Se transforma el diccionario en una lista con los valores de la información del usuario.
+                review_table.add_row(list(review.values()))
+                review_id_list.append(str(review['id']))
+              
+              clear_screen()
+              print(INSTRUCTIONS_STYLE+'Lista de revisiones disponibles'+Style.RESET_ALL)
+              print(INSTRUCTIONS_STYLE+'A continuación, ingresa el ID de la revisión que deseas consultar.'+Style.RESET_ALL)
+              print('')
+              # Se imprime en la terminal la tabla generada.
+              print(review_table)
+              print('')
+              review_id = input('- ID de revisión: ')
+
+              while review_id not in review_id_list:
+                review_id = input('- ID de revisión: ')
+              
+              # Se envía el ID de revisión seleccionado para obtener el detalle de la revisión
+              data = {'tx_option': 2, 'tx_sub_option': 2, 'pet_id': pet_id ,'review_id': review_id}
+
+              tx = self.generate_tx(PET_REVIEWS_SERVICE_NAME, str(data))
+
+              self.sock.send(tx.encode(encoding='UTF-8'))
+
+              tx_ok, tx_data = self.recv_data()
+
+              if tx_ok:
+                data = eval(tx_data.decode('UTF-8'))
+
+                if data['success']:
+                  clear_screen()
+                  print(INSTRUCTIONS_STYLE+'======================== Ficha de la mascota'+Style.RESET_ALL)
+                  print('')
+
+                  if data['pet_data']:
+                    print('- Nombre: '+data['pet_data']['nombre'])
+                    print('- Especie: '+data['pet_data']['especie'])
+                    print('- Sexo: '+data['pet_data']['sexo'])
+                    print('- Fecha de nacimiento: '+data['pet_data']['fecha_nacimiento'])
+                    print('- Raza: '+data['pet_data']['raza'])
+                    print('- Tamaño: '+data['pet_data']['tamano'])
+                    print('- Peso (kg): '+str(data['pet_data']['peso']))
+                    print('- Color: '+data['pet_data']['tamano'])
+                    print('- Patrón de color: '+data['pet_data']['patron_color'])
+                    print('- Esterilizado: '+ 'SI' if data['pet_data']['esterilizado'] else 'NO')
+                    print('- Residencia: '+data['pet_data']['residencia'])
+                  
+                  else:
+                    print(WARNING_STYLE+'* No se ha encontrado la ficha de la mascota según el ID de mascota ingresado.'+Style.RESET_ALL)
+                  
+                  print('')
+                  print(INSTRUCTIONS_STYLE+'======================== Detalle de la revisión'+Style.RESET_ALL)
+                  print('')
+                  
+                  if data['review_data']:
+                    print('- ID de mascota: '+str(data['review_data']['id_mascota']))
+                    print('- RUT de veterinario: '+data['review_data']['rut_veterinario'])
+                    print('- Fecha de la revisión: '+data['review_data']['fecha_revision'])
+                    print('- Motivo de la revisión:')
+                    print('')
+                    print('.............................................................................................................')
+                    print('')
+                    print(data['review_data']['motivo_revision'])
+                    print('')
+                    print('.............................................................................................................')
+                    print('')
+                    print('- Diagnóstico:')
+                    print('')
+                    print('.............................................................................................................')
+                    print('')
+                    print(data['review_data']['diagnostico'])
+                    print('')
+                    print('.............................................................................................................')
+                  
+                  else:
+                    print(WARNING_STYLE+'* No se ha encontrado la revisión de la mascota según el ID de revisión ingresado.'+Style.RESET_ALL)
+              
+            else:
+              print('')
+              print(WARNING_STYLE+'* La mascota seleccionada no tiene revisiones registradas.')
+          
+          else:
+            # La ficha de mascota no se encuentra registrada.
+            print('')
+            print(ERROR_STYLE+'[Error] '+data['error_notification'])
+
+      elif user_option == 4:
+        break
+
+      input('\n'+INSTRUCTIONS_STYLE+'Presiona ENTER para continuar'+Style.RESET_ALL)
+      clear_screen()
 
   # Método para menú y opciones internas de cada servicio
   def internal_menu_options(self, user_data):
@@ -893,9 +1173,8 @@ class Client:
       elif user_option == 1 and user_data['tipo_usuario'] == 1: # Sección de mascotas
         self.pet_management_gui()
 
-
       elif user_option == 2 and user_data['tipo_usuario'] == 1: # Sección de revisiones de mascotas
-        return
+        self.pet_reviews_gui()
 
       elif user_option == 3 and user_data['tipo_usuario'] == 1: # Cerrar sesión
         return
@@ -947,6 +1226,7 @@ class Client:
           if not user_data['auth_error']:
             # El usuario fue autenticado correctamente
             # Se muestra el siguiente menú interno con los otros servicios
+            self.session['user_data'] = user_data
             self.internal_menu_options(user_data)
           
           else:
