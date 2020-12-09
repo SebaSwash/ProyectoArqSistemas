@@ -675,7 +675,7 @@ class Client:
             print('- Tamaño: '+data['pet_data']['tamano'])
             print('- Peso (kg): '+str(data['pet_data']['peso']))
             print('- Color: '+data['pet_data']['tamano'])
-            print('- Patrón de color: '+data['pet_data']['tamano'])
+            print('- Patrón de color: '+data['pet_data']['patron_color'])
             print('- Esterilizado: '+ 'SI' if data['pet_data']['esterilizado'] else 'NO')
             print('- Residencia: '+data['pet_data']['residencia'])
 
@@ -723,24 +723,138 @@ class Client:
             print('- Tamaño: '+data['pet_data']['tamano'])
             print('- Peso (kg): '+str(data['pet_data']['peso']))
             print('- Color: '+data['pet_data']['tamano'])
-            print('- Patrón de color: '+data['pet_data']['tamano'])
+            print('- Patrón de color: '+data['pet_data']['patron_color'])
             print('- Esterilizado: '+ 'SI' if data['pet_data']['esterilizado'] else 'NO')
             print('- Residencia: '+data['pet_data']['residencia'])
 
             if data['pet_data']['tiene_microchip']:
+              microchip = True
               print('')
               print(INFO_STYLE+'* La mascota tiene microchip instalado.')
               print('- N° de microchip: '+ data['pet_data']['numero_microchip'] + Style.RESET_ALL)
             
             else:
+              microchip = False
               print('')
               print(WARNING_STYLE+'* La mascota NO tiene microchip instalado.'+Style.RESET_ALL)
+
+            print('')
+            print(INSTRUCTIONS_STYLE+'A continuación podrás modificar los campos del usuario.')
+            print('En caso de querer mantener alguno de los datos, presiona ENTER sin rellenarlo.'+Style.RESET_ALL)
+            print('')
+
+            # Se despliegan los inputs a medida que se mantienen o modifican
+            for attr in data['pet_data'].keys():
+
+              if attr == 'id':
+                continue
+
+              if attr == 'numero_microchip' and not microchip:
+                continue
+
+              new_attr = input('- '+str(attr)+': ')
+
+              if attr == 'sexo':
+                while new_attr.lower() not in ['','m', 'h']:
+                  new_attr = input('- '+str(attr)+' [M/H]: ')
+                
+                if new_attr.lower() in ['m', 'h']:
+                  new_attr = new_attr.upper()
+              
+              elif attr == 'fecha_nacimiento':
+                # Se comprueba la fecha de nacimiento con la expresión regular
+                if len(new_attr) != 0:
+                  while not re.match('^[0-9]{2}\\/[0-9]{2}\\/[0-9]{4}$', new_attr):
+                    new_attr = input('- '+str(attr)+' (dd/mm/aaaa): ')
+              
+              elif attr == 'peso':
+                if len(new_attr) != 0:
+                  while new_attr.isnumeric() is not True:
+                    new_attr = input('- '+str(attr)+': ')
+              
+              elif attr == 'esterilizado':
+                if len(new_attr) != 0:
+                  while new_attr.lower() not in ['s', 'n']:
+                    new_attr = input('- '+str(attr)+' [S/N]: ')
+              
+              elif attr == 'tiene_microchip':
+                if len(new_attr) != 0:
+                  while new_attr not in ['s', 'n']:
+                    new_attr = input('- '+str(attr)+' [S/N]: ')
+
+              if len(new_attr) != 0:
+
+                if attr == 'esterilizado':
+                  if new_attr.lower() == 's':
+                    new_attr = 1
+                  else:
+                    new_attr = 0
+                
+                elif attr == 'tiene_microchip':
+                  if new_attr.lower() == 's':
+                    new_attr = 1
+                    microchip = True
+                
+                  else:
+                    new_attr = 0
+                    microchip = False
+                    data['pet_data']['numero_microchip'] = None
+
+                # Se registra el atributo cambiado en el objeto a enviar
+                data['pet_data'][attr] = new_attr
+              
+              else:
+                # Se continúa en caso de que no se haya decidido modificar el campo
+                continue
+            
+            # Se genera la nueva transacción con los datos modificados y se envía al servicio
+            new_data = {'tx_option': 2, 'tx_sub_option': 2, 'pet_data': data['pet_data']}
+
+            tx = self.generate_tx(PET_MANAGEMENT_SERVICE_NAME, str(new_data))
+
+            self.sock.send(tx.encode(encoding='UTF-8'))
+
+            tx_ok, tx_data = self.recv_data()
+
+            if tx_ok:
+              data = eval(tx_data.decode('UTF-8'))
+
+              if data['success']:
+                print('')
+                print(SUCCESS_STYLE+data['success_notification']+Style.RESET_ALL)
+
           
           else:
             # La ficha de mascota no se encuentra registrada. Se notifica el error al usuario.
             print('')
-            print('[Error] '+data['error_notification'])
+            print(ERROR_STYLE+'[Error] '+data['error_notification']+Style.RESET_ALL)
       
+      elif user_option == 3: # Eliminar ficha de mascota
+        print(INSTRUCTIONS_STYLE+'Eliminar ficha de mascota'+Style.RESET_ALL)
+        print('')
+        pet_id = input('Ingresa el ID de la mascota: ')
+
+        # Se genera y envía la transacción para eliminar la ficha de mascota según el ID de mascota ingresado
+        data = {'tx_option': 3, 'pet_id': pet_id}
+
+        tx = self.generate_tx(PET_MANAGEMENT_SERVICE_NAME, str(data))
+
+        self.sock.send(tx.encode(encoding='UTF-8'))
+
+        tx_ok, tx_data = self.recv_data()
+
+        if tx_ok:
+          data = eval(tx_data.decode('UTF-8'))
+
+          print('')
+          if data['success']:
+            # La ficha de mascota ha sido eliminada correctamente
+            print(SUCCESS_STYLE+data['success_notification']+Style.RESET_ALL)
+          
+          else:
+            # No se ha encontrado una ficha de mascota asociada al ID de mascota ingresado
+            print(ERROR_STYLE+'[Error] '+data['error_notification']+Style.RESET_ALL)
+
       elif user_option == 4: # ======= Volver
         break
 

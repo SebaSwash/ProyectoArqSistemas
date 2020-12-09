@@ -208,7 +208,7 @@ class Service:
 
               # Se obtiene el posible registro de la ficha de mascota según el ID ingresado
               sql_query = '''
-                SELECT *
+                SELECT id, nombre, especie, sexo, fecha_nacimiento, raza, tamano, peso, color, patron_color, esterilizado, tiene_microchip, numero_microchip, residencia
                   FROM Mascotas
                     WHERE id = %s
               '''
@@ -227,7 +227,60 @@ class Service:
                 resp_data = {'pet_exists': False, 'error_notification': 'No se ha encontrado una ficha de mascota asociada al ID de mascota ingresado.'}
             
             elif client_data['tx_sub_option'] == 2: # ============================================== Confirmación de modificación de ficha de mascota
-              pass 
+              print(INSTRUCTIONS_STYLE+'\t- Subfuncionalidad requerida: Confirmación de modificación de ficha de mascota'+Style.RESET_ALL) 
+
+              query_replace_str = ''
+
+              for attr in client_data['pet_data'].keys():
+                if attr == 'id':
+                  continue
+
+                replace = str(attr)+' = %s, '
+                query_replace_str += replace
+              
+              # Se reemplaza la última ',' de la cadena de atributos a reemplazar
+              query_replace_str = replace_last(query_replace_str, ',', '')
+
+              pet_id = client_data['pet_data']['id']
+              del client_data['pet_data']['id']
+
+              # Se modifica el registro del usuario
+              sql_query = 'UPDATE Mascotas SET '+query_replace_str+' WHERE id = %s'
+              
+              values = tuple(client_data['pet_data'].values())
+              values += (pet_id,)
+
+              self.db.query(sql_query, values)
+
+              resp_data = {'success': True, 'success_notification': 'La ficha de mascota ha sido modificada correctamente.'}
+          
+          elif tx_option == 3: # ============================================== Eliminar ficha de mascota
+            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: Eliminación de ficha de mascota'+Style.RESET_ALL)
+
+            pet_id = client_data['pet_id']
+
+            # Se verifica si existe el registro de la ficha a eliminar
+            sql_query = '''
+              SELECT COUNT(*) AS cantidad_registros
+                FROM Mascotas
+                  WHERE id = %s
+            '''
+            cursor = self.db.query(sql_query, (pet_id,))
+            cantidad_registros = cursor.fetchone()['cantidad_registros']
+
+            if cantidad_registros == 0:
+              # No existe una ficha de mascota asociada al ID de mascota ingresado. Se notifica el error.
+              resp_data = {'success': False, 'error_notification': 'No se ha encontrado una ficha de mascota asociada al ID de mascota ingresado.'}
+            
+            else:
+              # La mascota se encuentra registrada. Por lo tanto se elimina y se notifica al usuario.
+              sql_query = '''
+                DELETE FROM Mascotas
+                  WHERE id = %s
+              '''
+              self.db.query(sql_query, (pet_id,))
+              
+              resp_data = {'success': True, 'success_notification': 'La ficha de mascota ha sido eliminada correctamente.'}
 
         except Exception as error:
           print(ERROR_STYLE+error+Style.RESET_ALL)
