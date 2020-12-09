@@ -2,7 +2,7 @@
 # pylint: enable=too-many-lines
 
 # ╔═════════════════════════════════════════════════════════════════════════════════════════════╗
-# ║ Servicio de gestión de usuarios para proyecto de Arquitectura de Sistemas (02 - 2020)       ║
+# ║ Servicio de gestión de mascotas para proyecto de Arquitectura de Sistemas (02 - 2020)       ║
 # ╠═════════════════════════════════════════════════════════════════════════════════════════════╣
 # ║ Integrantes:                                                                                ║
 # ║ * Lorenzo Alfaro Bravo                                                                      ║
@@ -38,7 +38,7 @@ SUCCESS_STYLE = Back.GREEN + Fore.WHITE
 
 class Service:
   def __init__(self, host, port, name):
-    self.service_title = 'Servicio de gestión de usuarios' # Título con descripción del servicio
+    self.service_title = 'Servicio de gestión de mascotas' # Título con descripción del servicio
     self.service_name = name # Nombre del servicio para reconocimiento del bus de servicios
 
     # Se realiza la conexión a la base de datos con las credenciales
@@ -46,7 +46,7 @@ class Service:
 
     # Se genera el socket utilizando protocolo TCP
     self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    
+
     try:
       self.sock.connect((host, int(port)))
       print(INSTRUCTIONS_STYLE+self.service_title+Style.RESET_ALL)
@@ -131,157 +131,108 @@ class Service:
         try:
           client_data = eval(tx_data)
 
-          # Se verifica la opción de transacción enviada por el cliente
-          tx_option = client_data['tx_option']
+          tx_option = client_data['tx_option'] # Opción seleccionada por el cliente
 
-          if tx_option == 0: # SOLICITUD DE MENÚ INTERNO 
-            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: Solicitud de menú interno'+Style.RESET_ALL)
-            # Se envía el menú interno al cliente
-            option_list = ['Ver lista de usuarios registrados', 
-                            'Agregar nuevo usuario',
-                            'Ver detalle de usuario', 
-                            'Modificar usuario', 
-                            'Eliminar usuario', 
-                            'Volver']
-            resp_data = {}
-            resp_data['menu_title'] = 'Menú de gestión de usuarios'
-            resp_data['menu_subtitle'] = 'Selecciona una de las opciones a continuación.'
-            resp_data['menu_options'] = option_list
-          
-          elif tx_option == 1: # LISTA DE USUARIOS REGISTRADOS
-            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: Lista de usuarios registrados'+Style.RESET_ALL)
-            # Se envía la lista de usuarios registrados (ordenada por apellidos)
-            sql_query = '''
-              SELECT rut,nombres,apellidos,email,direccion
-                FROM Usuarios
-                  ORDER BY apellidos ASC
-            '''
-            cursor = self.db.query(sql_query, None)
+          if tx_option == 0: # ============================================== Funcionalidad de agregar nueva mascota
+            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: Registro de nueva mascota'+Style.RESET_ALL)
 
-            # Se genera el objeto a enviar
-            resp_data = {}
-            resp_data['users_list'] = cursor.fetchall()
-          
-          elif tx_option == 2: # REGISTRO DE NUEVO USUARIO
-            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: Registro de nuevo usuario'+Style.RESET_ALL)
-
-            # Se transforman los datos del usuario a registrar, obtenidos desde el cliente
-            user_data = client_data['user_data']
-
-            # Se comprueba la existencia del usuario en la base de datos según RUT o correo
-            sql_query = '''
-              SELECT rut
-                FROM Usuarios
-                  WHERE rut = %s OR email = %s
-            '''
-            cursor = self.db.query(sql_query, (user_data['rut'], user_data['email']))
-            reg_count = len(cursor.fetchall())
-
-            if reg_count != 0:
-              # Se notifica el error al estar registrado el usuario según el rut o email recibido
-              error_msg = '[Error] El rut o correo electrónico ingresado se encuentran en uso.'
-              resp_data = {'success': False, 'error_notification': error_msg}
-
-            else:
-              # Se registra el usuario con los datos entregados
-              user_data['password'] = user_data['password'].decode('UTF-8')
-
+            if client_data['tx_sub_option'] == 1: # Validación de RUT de propietario
+              print(INSTRUCTIONS_STYLE+'\t- Subfuncionalidad requerida: Validación de RUT de propietario'+Style.RESET_ALL)
+              # Se verifica que el RUT esté asociado a un usuario registrado
               sql_query = '''
-                INSERT INTO Usuarios (rut, nombres, apellidos, email, direccion, tipo_usuario, password)
-                  VALUES (%s, %s, %s, %s, %s, %s, %s)
-              '''
-              self.db.query(sql_query, tuple(user_data.values()))
-
-              # Luego de registrar, se notifica al cliente
-              success_msg = 'El usuario ha sido registrado correctamente.'
-              resp_data = {'success': True, 'success_notification': success_msg}
-          
-          elif tx_option == 3: # VER DETALLE DE USUARIO
-            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: Ver detalle de usuario'+Style.RESET_ALL)
-
-            # Se obtienen los datos del usuario y las posibles mascotas asociadas según el RUT indicado
-            sql_query = '''
-              SELECT rut, nombres, apellidos, email, direccion, tipo_usuario
-                FROM Usuarios
-                  WHERE rut = %s
-            '''
-            cursor = self.db.query(sql_query, (client_data['rut_usuario'],))
-            user_data = cursor.fetchone()
-
-            # Se modifica el atributo tipo usuario para mostrarlo como string
-            if user_data is not None:
-              user_data['tipo_usuario'] = 'Veterinario' if user_data['tipo_usuario'] == 1 else 'Cliente'
-
-            sql_query = '''
-              SELECT id, nombre
-                FROM Mascotas
-                  WHERE rut_propietario = %s
-            '''
-            cursor = self.db.query(sql_query, (client_data['rut_usuario'],))
-            pet_list = cursor.fetchall()
-
-            resp_data = {}
-
-            if user_data is None:
-              resp_data['success'] = False
-              resp_data['error_notification'] = 'No se ha encontrado información asociada a un usuario con el rut ingresado.'
-            
-            else:
-              resp_data['success'] = True
-              resp_data['user_data'] = user_data
-              resp_data['pet_list'] = pet_list
-          
-          elif tx_option == 4: # MODIFICAR INFORMACIÓN DE USUARIO
-            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: Modificar información de usuario'+Style.RESET_ALL)
-
-            # Se obtiene la sub-transacción
-            if client_data['tx_sub_option'] == 1: # Validación de RUT y obtención de datos del usuario (en caso de que exista)
-              sql_query = '''
-                SELECT rut, nombres, apellidos, email, direccion, tipo_usuario
+                SELECT rut, nombres, apellidos
                   FROM Usuarios
                     WHERE rut = %s
               '''
-              cursor = self.db.query(sql_query, (client_data['rut_usuario'],))
+              cursor = self.db.query(sql_query, (client_data['rut_propietario'],))
+
               user_data = cursor.fetchone()
 
-              # Se modifica el atributo tipo usuario para mostrarlo como string
               if user_data is not None:
-                user_data['tipo_usuario'] = 'Veterinario' if user_data['tipo_usuario'] == 1 else 'Cliente'
-                # Se genera la respuesta (exitosa)
+                # Existe un usuario con el RUT ingresado
                 resp_data = {'user_exists': True, 'user_data': user_data}
               
               else:
-                # Se genera la respuesta (no encontrado)
-                resp_data = {'user_exists': False}
-              
-            elif client_data['tx_sub_option'] == 2: # Modificación de información de usuario
-              # Se genera el substring para realizar la consulta SQL (SET attr1=a, attr2=b, ...)
-              query_replace_str = ''
-              user_data = client_data['user_data']
+                # No se ha encontrado un usuario con el RUT ingresado
+                resp_data = {'user_exists': False, 'error_notification': 'No se ha encontrado un usuario registrado según el RUT especificado.'}
+            
+            elif client_data['tx_sub_option'] == 2: # Confirmación de registro de mascota
+              print(INSTRUCTIONS_STYLE+'\t- Subfuncionalidad requerida: Confirmación de registro de mascota'+Style.RESET_ALL)
 
-              # Se verifica, en caso de que se haya decidido modificar el correo
-              if 'email' in user_data.keys():
-                sql_query = '''
-                  SELECT COUNT(*) AS cantidad_registros
-                    FROM Usuarios
-                      WHERE rut != %s AND email = %s
-                '''
-                cursor = self.db.query(sql_query, (user_data['rut_usuario'], user_data['email']))
-                cantidad_registros = cursor.fetchone()['cantidad_registros']
+              # Se convierte la fecha recibida para generarla mediante datetime
+              client_data['pet_data']['fecha_nacimiento'] = client_data['pet_data']['fecha_nacimiento'].split('/')
+              client_data['pet_data']['fecha_nacimiento'] = datetime(
+                year = int(client_data['pet_data']['fecha_nacimiento'][2]),
+                month = int(client_data['pet_data']['fecha_nacimiento'][1]),
+                day = int(client_data['pet_data']['fecha_nacimiento'][0])
+              ).date()
 
-                if cantidad_registros != 0:
-                  # El correo seleccionado para modificar ya se encuentra en uso
-                  resp_data = {'mod_error': True, 'error_notification': 'El correo electrónico seleccionado ya se encuentra en uso.'}
-                  # Se genera la transacción y se envía al cliente
-                  tx = self.generate_tx(str(resp_data)).encode(encoding='UTF-8')
+              # Se registran la mascota según los datos ingresados
+              sql_query = '''
+                INSERT INTO Mascotas (rut_propietario, nombre, especie, sexo, fecha_nacimiento, raza, tamano, peso, color, patron_color, esterilizado, tiene_microchip, numero_microchip, residencia)
+                  VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+              '''
+              self.db.query(sql_query, tuple(client_data['pet_data'].values()))
 
-                  self.sock.send(tx)
-                  continue
+              resp_data = {'registered': True, 'success_notification': 'La mascota ha sido registrada correctamente según los datos ingresados.'}
           
+          elif tx_option == 1: # ============================================== Ver ficha de mascota
+            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: Ver ficha de mascota'+Style.RESET_ALL) 
 
-              for attr in user_data.keys():
+            # Se obtiene la posible ficha de registro en la base de datos según el ID de mascota especificado
+            sql_query = '''
+              SELECT Usuarios.rut AS rut_propietario, Usuarios.nombres AS nombres_propietario, Usuarios.apellidos AS apellidos_propietario, Mascotas.*
+                FROM Mascotas, Usuarios
+                  WHERE Mascotas.id = %s
+                  AND Usuarios.rut = Mascotas.rut_propietario
+            '''
 
-                if attr == 'rut_usuario':
+            cursor = self.db.query(sql_query, (client_data['pet_id'],))
+            pet_reg = cursor.fetchone()
+
+            if pet_reg is not None:
+              # La ficha de la mascota se encuentra registrada
+              pet_reg['fecha_nacimiento'] = str(pet_reg['fecha_nacimiento']) # Se transforma el objeto de fecha a un string
+              
+              resp_data = {'pet_exists': True, 'pet_data': pet_reg}
+            
+            else:
+              # La ficha de la mascota no se encuentra registrada
+              resp_data = {'pet_exists': False, 'error_notification': 'No se ha encontrado una ficha de mascota asociada al ID de mascota ingresado.'}
+
+          elif tx_option == 2: # ============================================== Modificar ficha de mascota
+            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: Modificar ficha de mascota'+Style.RESET_ALL)
+
+            if client_data['tx_sub_option'] == 1: # ============================================== Validación de RUT de propietario
+              print(INSTRUCTIONS_STYLE+'\t- Subfuncionalidad requerida: Validación de ID de mascota'+Style.RESET_ALL)
+
+              # Se obtiene el posible registro de la ficha de mascota según el ID ingresado
+              sql_query = '''
+                SELECT id, nombre, especie, sexo, fecha_nacimiento, raza, tamano, peso, color, patron_color, esterilizado, tiene_microchip, numero_microchip, residencia
+                  FROM Mascotas
+                    WHERE id = %s
+              '''
+              cursor = self.db.query(sql_query, (client_data['pet_id'],))
+
+              pet_reg = cursor.fetchone()
+
+              if pet_reg is not None:
+                # La ficha de mascota se encuentra registrada
+                pet_reg['fecha_nacimiento'] = str(pet_reg['fecha_nacimiento']) # Se transforma el objeto de fecha a un string
+
+                resp_data = {'pet_exists': True, 'pet_data': pet_reg}
+
+              else:
+                # La ficha de mascota no se necuentra registrada
+                resp_data = {'pet_exists': False, 'error_notification': 'No se ha encontrado una ficha de mascota asociada al ID de mascota ingresado.'}
+            
+            elif client_data['tx_sub_option'] == 2: # ============================================== Confirmación de modificación de ficha de mascota
+              print(INSTRUCTIONS_STYLE+'\t- Subfuncionalidad requerida: Confirmación de modificación de ficha de mascota'+Style.RESET_ALL) 
+
+              query_replace_str = ''
+
+              for attr in client_data['pet_data'].keys():
+                if attr == 'id':
                   continue
 
                 replace = str(attr)+' = %s, '
@@ -290,44 +241,47 @@ class Service:
               # Se reemplaza la última ',' de la cadena de atributos a reemplazar
               query_replace_str = replace_last(query_replace_str, ',', '')
 
-              rut_usuario = user_data['rut_usuario']
-              del user_data['rut_usuario']
+              pet_id = client_data['pet_data']['id']
+              del client_data['pet_data']['id']
 
               # Se modifica el registro del usuario
-              sql_query = 'UPDATE Usuarios SET '+query_replace_str+' WHERE rut = %s'
+              sql_query = 'UPDATE Mascotas SET '+query_replace_str+' WHERE id = %s'
               
-              values = tuple(user_data.values())
-              values += (rut_usuario,)
+              values = tuple(client_data['pet_data'].values())
+              values += (pet_id,)
 
               self.db.query(sql_query, values)
 
-              resp_data = {'mod_error': False, 'success_notification': 'El usuario ha sido modificado correctamente.'}
+              resp_data = {'success': True, 'success_notification': 'La ficha de mascota ha sido modificada correctamente.'}
           
-          elif tx_option == 5: # ELIMINACIÓN DE USUARIO
-            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: Eliminación de usuario'+Style.RESET_ALL)
+          elif tx_option == 3: # ============================================== Eliminar ficha de mascota
+            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: Eliminación de ficha de mascota'+Style.RESET_ALL)
 
-            # Se revisa si existe algún usuario registrado con el RUT ingresado
+            pet_id = client_data['pet_id']
+
+            # Se verifica si existe el registro de la ficha a eliminar
             sql_query = '''
               SELECT COUNT(*) AS cantidad_registros
-                FROM Usuarios
-                  WHERE rut = %s
+                FROM Mascotas
+                  WHERE id = %s
             '''
-            cursor = self.db.query(sql_query, (client_data['rut_usuario'],))
+            cursor = self.db.query(sql_query, (pet_id,))
             cantidad_registros = cursor.fetchone()['cantidad_registros']
 
             if cantidad_registros == 0:
-              # No existe un usuario registrado con el RUT ingresado
-              resp_data = {'delete_error': True, 'error_notification': 'No se ha encontrado un usuario registrado según el RUT ingresado.'}
+              # No existe una ficha de mascota asociada al ID de mascota ingresado. Se notifica el error.
+              resp_data = {'success': False, 'error_notification': 'No se ha encontrado una ficha de mascota asociada al ID de mascota ingresado.'}
             
             else:
-              # Se elimina al usuario con el RUT asociado
+              # La mascota se encuentra registrada. Por lo tanto se elimina y se notifica al usuario.
               sql_query = '''
-                DELETE FROM Usuarios
-                  WHERE rut = %s
+                DELETE FROM Mascotas
+                  WHERE id = %s
               '''
-              self.db.query(sql_query, (client_data['rut_usuario'],))
-              resp_data = {'delete_error': False, 'success_notification': 'El usuario seleccionado ha sido eliminado correctamente.'}
-            
+              self.db.query(sql_query, (pet_id,))
+              
+              resp_data = {'success': True, 'success_notification': 'La ficha de mascota ha sido eliminada correctamente.'}
+
         except Exception as error:
           print(ERROR_STYLE+error+Style.RESET_ALL)
           # Se genera el error y se envía al cliente
@@ -344,6 +298,7 @@ class Service:
         print(str(error)+Style.RESET_ALL)
         error_msg = '[Error] Se ha producido el siguiente error al procesar la transacción:\n'+str(error)
         self.sock.send(self.generate_tx(error_msg).encode(encoding='UTF-8'))
+
 
 if __name__ == '__main__':
   # Configuración de argumentos solicitados al momento de ejecutar el comando en la terminal
