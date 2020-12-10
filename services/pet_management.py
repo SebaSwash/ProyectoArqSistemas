@@ -280,12 +280,41 @@ class Service:
               '''
               self.db.query(sql_query, (pet_id,))
 
-              # Se eliminan las posibles revisiones de la mascota.
+              # Se eliminan las posibles revisiones asociadas
               sql_query = '''
                 DELETE FROM Revisiones
                   WHERE id_mascota = %s
               '''
               self.db.query(sql_query, (pet_id,))
+
+              # Se obtienen los IDs de las revisiones para eliminar los posibles insumos
+              #sql_query = '''
+              #  SELECT id
+              #    FROM Revisiones
+              #      WHERE id_mascota = %s
+              #'''
+              #cursor = self.db.query(sql_query, (pet_id,))
+              #reviews_list = cursor.fetchall()
+
+              #for review in reviews_list:
+              #  sql_query = '''
+              #    SELECT id_insumo
+              #      FROM InsumosRevisiones
+              #        WHERE id_revision = %s
+              #  '''
+              #  cursor = self.db.query(sql_query, (review['id'],))
+              #  supplies_list = cursor.fetchall()
+              #  supplies_list = [supplie['id_insumo'] for supplie in supplies_list]
+
+              #  sql_query = '''
+              #    DELETE FROM 
+              #      Insumos
+              #        WHERE id in {0}
+              #  '''
+              #  supplies_list_str = str(supplies_list).replace("[","(").replace("]",")")
+              #  sql_query = sql_query.format(supplies_list_str)
+              #  self.db.query(sql_query, None)
+
 
               resp_data = {'success': True, 'success_notification': 'La ficha de mascota ha sido eliminada correctamente.'}
 
