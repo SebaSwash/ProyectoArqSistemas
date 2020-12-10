@@ -730,7 +730,7 @@ class Client:
             print('- Raza: '+data['pet_data']['raza'])
             print('- Tamaño: '+data['pet_data']['tamano'])
             print('- Peso (kg): '+str(data['pet_data']['peso']))
-            print('- Color: '+data['pet_data']['tamano'])
+            print('- Color: '+data['pet_data']['color'])
             print('- Patrón de color: '+data['pet_data']['patron_color'])
             print('- Esterilizado: '+ 'SI' if data['pet_data']['esterilizado'] else 'NO')
             print('- Residencia: '+data['pet_data']['residencia'])
@@ -923,7 +923,7 @@ class Client:
             print('- Raza: '+data['pet_data']['raza'])
             print('- Tamaño: '+data['pet_data']['tamano'])
             print('- Peso (kg): '+str(data['pet_data']['peso']))
-            print('- Color: '+data['pet_data']['tamano'])
+            print('- Color: '+data['pet_data']['color'])
             print('- Patrón de color: '+data['pet_data']['patron_color'])
             print('- Esterilizado: '+ 'SI' if data['pet_data']['esterilizado'] else 'NO')
             print('- Residencia: '+data['pet_data']['residencia'])
@@ -1092,7 +1092,7 @@ class Client:
                     print('- Raza: '+data['pet_data']['raza'])
                     print('- Tamaño: '+data['pet_data']['tamano'])
                     print('- Peso (kg): '+str(data['pet_data']['peso']))
-                    print('- Color: '+data['pet_data']['tamano'])
+                    print('- Color: '+data['pet_data']['color'])
                     print('- Patrón de color: '+data['pet_data']['patron_color'])
                     print('- Esterilizado: '+ 'SI' if data['pet_data']['esterilizado'] else 'NO')
                     print('- Residencia: '+data['pet_data']['residencia'])
@@ -1135,8 +1135,207 @@ class Client:
             # La ficha de mascota no se encuentra registrada.
             print('')
             print(ERROR_STYLE+'[Error] '+data['error_notification'])
+      
+      elif user_option == 2: # ============= Modificación de revisión
+        print(INSTRUCTIONS_STYLE+'Modificación de revisión'+Style.RESET_ALL)
+        print('')
 
-      elif user_option == 4:
+        # Se obtiene la lista de revisiones que ha registrado el usuario
+        data = {'tx_option': 3, 'tx_sub_option': 1, 'rut_usuario': self.session['user_data']['rut']}
+        
+        tx = self.generate_tx(PET_REVIEWS_SERVICE_NAME, str(data))
+
+        self.sock.send(tx.encode(encoding='UTF-8'))
+
+        tx_ok, tx_data = self.recv_data()
+
+        if tx_ok:
+          data = eval(tx_data.decode('UTF-8'))
+
+          if data['success']:
+            if len(data['review_list']) != 0:
+              # Existen revisiones asociadas al usuario
+              print(INSTRUCTIONS_STYLE+'A continuación se muestran las revisiones que has registrado. Selecciona una de ellas para continuar.'+Style.RESET_ALL)
+              print('')
+
+              review_table = PrettyTable()
+              review_id_list = [] # Lista para almacenar los IDs de revisiones pertenecientes a la mascota consultada.
+
+              # Se agregan las columnas, según los atributos recibidos.
+              review_table.field_names = list(data['review_list'][0].keys())
+                
+              # Se agregan las filas en la tabla según cada usuario registrado
+              for review in data['review_list']:
+                # Se transforma el diccionario en una lista con los valores de la información del usuario.
+                review_table.add_row(list(review.values()))
+                review_id_list.append(str(review['id']))
+              
+              print(review_table)
+              print('')
+
+              review_id = input('> Selecciona el ID de la revisión a modificar: ')
+
+              while review_id not in review_id_list:
+                review_id = input('> Selecciona el ID de la revisión a modificar: ')
+              
+              # Se obtiene el detalle de la revisión seleccionada desde el servicio
+              data = {'tx_option': 3, 'tx_sub_option': 2, 'review_id': review_id}
+
+              tx = self.generate_tx(PET_REVIEWS_SERVICE_NAME, str(data))
+
+              self.sock.send(tx.encode(encoding='UTF-8'))
+
+              tx_ok, tx_data = self.recv_data()
+
+              if tx_ok:
+                data = eval(tx_data.decode('UTF-8'))
+                print('')
+
+                if data['success']:
+                  # El registro de la revisión se obtuvo correctamente
+                  clear_screen()
+                  print(INSTRUCTIONS_STYLE+'======================== Detalle de la revisión'+Style.RESET_ALL)
+                  print('')
+                  print('- ID de mascota: '+str(data['review_data']['id_mascota']))
+                  print('- RUT de veterinario: '+data['review_data']['rut_veterinario'])
+                  print('- Fecha de la revisión: '+data['review_data']['fecha_revision'])
+                  print('- Motivo de la revisión:')
+                  print('')
+                  print('.............................................................................................................')
+                  print('')
+                  print(data['review_data']['motivo_revision'])
+                  print('')
+                  print('.............................................................................................................')
+                  print('')
+                  print('- Diagnóstico:')
+                  print('')
+                  print('.............................................................................................................')
+                  print('')
+                  print(data['review_data']['diagnostico'])
+                  print('')
+                  print('.............................................................................................................')
+
+                  print('')
+                  print(INSTRUCTIONS_STYLE+'A continuación podrás modificar los campos de la revisión.'+Style.RESET_ALL)
+                  print('')
+
+                  modificacion_motivo = False
+                  modificacion_diagnostico = False
+
+                  op = input('¿Deseas modificar el motivo de revisión? [S/N]: ')
+
+                  while op.lower() not in ['s', 'n']:
+                    op = input('¿Deseas modificar el motivo de revisión? [S/N]: ')
+                  
+                  if op.lower() == 's':
+                    modificacion_motivo = True
+                    
+                    print('')
+                    print('- Motivo de revisión (Escribe "END" para salir del campo de texto): ')
+                    print('')
+
+                    motivo_revision = ''
+                    line = ''
+                    while True:
+                      line = input('> ')
+
+                      if line == 'END':
+                        break
+
+                      motivo_revision += line + '\n'
+              
+                    data['review_data']['motivo_revision'] = replace_last(motivo_revision, '\n', '')
+                  
+                  print('')
+                  op = input('¿Deseas modificar el diagnóstico? [S/N]: ')
+
+                  while op.lower() not in ['s', 'n']:
+                    op = input('¿Deseas modificar el diagnóstico? [S/N]: ')
+                  
+                  if op.lower() == 's':
+                    modificacion_diagnostico = True
+                    
+                    print('')
+                    print('- Diagnóstico (Escribe "END" para salir del campo de texto): ')
+                    print('')
+
+                    diagnostico = ''
+                    line = ''
+                    while True:
+                      line = input('> ')
+
+                      if line == 'END':
+                        break
+
+                      diagnostico += line + '\n'
+                    
+                    data['review_data']['diagnostico'] = replace_last(diagnostico, '\n', '')
+                  
+                  # Se reemplazan los valores y se genera la modificación en caso de que se haya modificado al menos uno de los campos
+                  if modificacion_diagnostico or modificacion_motivo:
+                    print('')
+                    conf_op = input('¿Deseas registrar los cambios de la revisión? [S/N]: ')
+
+                    while conf_op.lower() not in ['s', 'n']:
+                      conf_op = input('¿Deseas registrar los cambios de la revisión? [S/N]: ')
+                    
+                    if conf_op.lower() == 's':
+                      # Se genera la transacción para realizar la modificación del registro
+                      data = {'tx_option': 3, 'tx_sub_option': 3, 'review_data': data['review_data']}
+
+                      tx = self.generate_tx(PET_REVIEWS_SERVICE_NAME, str(data))
+
+                      self.sock.send(tx.encode(encoding='UTF-8'))
+
+                      tx_ok, tx_data = self.recv_data()
+
+                      if tx_ok:
+                        data = eval(tx_data.decode('UTF-8'))
+
+                        if data['success']:
+                          print('')
+                          print(SUCCESS_STYLE+data['success_notification']+Style.RESET_ALL)
+                  
+                  else:
+                    print('')
+                    print(WARNING_STYLE+'* No se han realizado cambios en la revisión seleccionada.'+Style.RESET_ALL)
+                  
+                else:
+                  # No se encontró el registro de la revisión según el ID seleccionado.
+                  print(ERROR_STYLE+'[Error] '+data['error_notification']+Style.RESET_ALL)
+            
+            else:
+              print(WARNING_STYLE+'* No se han encontrado revisiones registradas asociadas a tu cuenta.'+Style.RESET_ALL)
+      
+      elif user_option == 3: # ============= Eliminación de revisión
+        print(INSTRUCTIONS_STYLE+'Eliminación de revisión'+Style.RESET_ALL)
+        print('')
+
+        review_id = input('Ingresa el ID de la revisión a eliminar: ')
+
+        # Se envía al servicio el ID de la revisión a eliminar
+        data = {'tx_option': 4, 'review_id': review_id, 'rut_usuario': self.session['user_data']['rut']}
+
+        tx = self.generate_tx(PET_REVIEWS_SERVICE_NAME, str(data))
+
+        self.sock.send(tx.encode(encoding='UTF-8'))
+
+        tx_ok, tx_data = self.recv_data()
+
+        if tx_ok:
+          data = eval(tx_data.decode('UTF-8'))
+
+          print('')
+          if data['success']:
+            # El registro de la revisión ha sido eliminado correctamente
+            print(SUCCESS_STYLE+data['success_notification']+Style.RESET_ALL)
+          
+          else:
+            # El registro de la revisión no se encuentra registrado.
+            print(ERROR_STYLE+'[Error] '+data['error_notification']+Style.RESET_ALL)
+
+
+      elif user_option == 4: # ============= Volver al menú principal
         break
 
       input('\n'+INSTRUCTIONS_STYLE+'Presiona ENTER para continuar'+Style.RESET_ALL)
@@ -1160,7 +1359,7 @@ class Client:
       
       elif user_data['tipo_usuario'] == 2:
         # El usuario corresponde a un cliente
-        menu.append_item(SelectionItem('Cerrar sesión',3))
+        menu.append_item(SelectionItem('Cerrar sesión',0))
       
       menu.show(False) # False evita que se muestra la opción de 'exit' que viene por defecto
 
@@ -1177,9 +1376,11 @@ class Client:
         self.pet_reviews_gui()
 
       elif user_option == 3 and user_data['tipo_usuario'] == 1: # Cerrar sesión
+        self.session = {} # Se restablece al diccionario inicial, al cerrar la sesión.
         return
       
-      elif user_option == 3 and user_data['tipo_usuario'] == 2: # Cerrar sesión
+      elif user_option == 0 and user_data['tipo_usuario'] == 2: # Cerrar sesión
+        self.session = {} # Se restablece al diccionario inicial, al cerrar la sesión.
         return
   
   # Método para menú y opción de autentificación
@@ -1239,6 +1440,9 @@ class Client:
         print(Style.RESET_ALL)
         print(ERROR_STYLE+'[Error] Se ha producido el siguiente error al procesar la transacción:')
         print(str(error)+Style.RESET_ALL)
+
+        print('')
+        print(INSTRUCTIONS_STYLE+'Presiona ENTER para continuar.'+Style.RESET_ALL)
 
     elif user_option == 1:
       print(Style.RESET_ALL)
