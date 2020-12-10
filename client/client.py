@@ -684,7 +684,7 @@ class Client:
             print('- Peso (kg): '+str(data['pet_data']['peso']))
             print('- Color: '+data['pet_data']['tamano'])
             print('- Patrón de color: '+data['pet_data']['patron_color'])
-            print('- Esterilizado: '+ 'SI' if data['pet_data']['esterilizado'] else 'NO')
+            print('- Esterilizado: '+ 'SI' if data['pet_data']['esterilizado'] else '- Esterilizado: NO')
             print('- Residencia: '+data['pet_data']['residencia'])
 
             if data['pet_data']['tiene_microchip']:
@@ -732,7 +732,7 @@ class Client:
             print('- Peso (kg): '+str(data['pet_data']['peso']))
             print('- Color: '+data['pet_data']['color'])
             print('- Patrón de color: '+data['pet_data']['patron_color'])
-            print('- Esterilizado: '+ 'SI' if data['pet_data']['esterilizado'] else 'NO')
+            print('- Esterilizado: '+ 'SI' if data['pet_data']['esterilizado'] else '- Esterilizado: NO')
             print('- Residencia: '+data['pet_data']['residencia'])
 
             if data['pet_data']['tiene_microchip']:
@@ -925,7 +925,7 @@ class Client:
             print('- Peso (kg): '+str(data['pet_data']['peso']))
             print('- Color: '+data['pet_data']['color'])
             print('- Patrón de color: '+data['pet_data']['patron_color'])
-            print('- Esterilizado: '+ 'SI' if data['pet_data']['esterilizado'] else 'NO')
+            print('- Esterilizado: '+ 'SI' if data['pet_data']['esterilizado'] else '- Esterilizado: NO')
             print('- Residencia: '+data['pet_data']['residencia'])
 
             print('')
@@ -994,6 +994,59 @@ class Client:
             print('')
             print('.............................................................................................................')
             print('')
+
+            supplies_op = input('¿Deseas registrar insumos utilizados en la revisión? [S/N]: ')
+
+            while supplies_op.lower() not in ['s', 'n']:
+              supplies_op = input('¿Deseas registrar insumos utilizados en la revisión? [S/N]: ')
+
+            print('')
+
+            if supplies_op.lower() == 's':
+              supplies_count = input('- Cantidad de insumos utilizados: ')
+
+              while supplies_count.isnumeric() is not True:
+                supplies_count = input('- Cantidad de insumos utilizados: ')
+
+              supplies_list = [] # Lista para almacenar los insumos
+            
+              for i in range(int(supplies_count)):
+                print('')
+                print('* Insumo '+str(i+1))
+
+                nombre_insumo = input('- Nombre de insumo: ')
+
+                while len(nombre_insumo) == 0:
+                  nombre_insumo = input('- Nombre de insumo: ')
+                
+                tipo = input('- Tipo de insumo: ')
+
+                while len(tipo) == 0:
+                  tipo = input('- Tipo de insumo: ')
+                
+                cantidad = input('- Cantidad utilizada (ml): ')
+
+                while cantidad.isnumeric() is not True:
+                  cantidad = input('- Cantidad utilizada (ml): ')
+                
+                print('')
+                print('- Descripción (Escribe "END" para salir del campo de texto): ')
+                print('')
+
+                descripcion = ''
+                line = ''
+                while True:
+                  line = input('> ')
+
+                  if line == 'END':
+                    break
+
+                  descripcion += line + '\n'
+
+                # Se crea la tupla con los elementos y se agrega a la lista de insumos
+                supplies_list.append((nombre_insumo, tipo, cantidad, descripcion))
+
+                review['supplies_list'] = supplies_list
           
             conf_op = input('¿Deseas registrar la revisión en la ficha de la mascota? [S/N]: ')
 
@@ -1094,7 +1147,7 @@ class Client:
                     print('- Peso (kg): '+str(data['pet_data']['peso']))
                     print('- Color: '+data['pet_data']['color'])
                     print('- Patrón de color: '+data['pet_data']['patron_color'])
-                    print('- Esterilizado: '+ 'SI' if data['pet_data']['esterilizado'] else 'NO')
+                    print('- Esterilizado: '+ 'SI' if data['pet_data']['esterilizado'] else '- Esterilizado: NO')
                     print('- Residencia: '+data['pet_data']['residencia'])
                   
                   else:
@@ -1123,7 +1176,22 @@ class Client:
                     print(data['review_data']['diagnostico'])
                     print('')
                     print('.............................................................................................................')
-                  
+
+                    if 'supplies_list' in data.keys():
+
+                      print('')
+                      print(INSTRUCTIONS_STYLE+'======================== Lista de insumos utilizados'+Style.RESET_ALL)
+                      print('')
+
+                      for supplie in data['supplies_list']:
+                        print('- '+supplie['nombre'])
+                      
+                      print('')
+                    
+                    else:
+                      print('')
+                      print(WARNING_STYLE+'* No se han encontrado insumos registrados en la revisión.'+Style.RESET_ALL)
+
                   else:
                     print(WARNING_STYLE+'* No se ha encontrado la revisión de la mascota según el ID de revisión ingresado.'+Style.RESET_ALL)
               

@@ -169,7 +169,25 @@ class Service:
                 INSERT INTO Revisiones (id_mascota, rut_veterinario, fecha_revision, motivo_revision, diagnostico)
                   VALUES (%s, %s, %s, %s, %s)
               '''
-              self.db.query(sql_query, (review_data['id_mascota'], review_data['rut_veterinario'], review_data['fecha_revision'], review_data['motivo_revision'], review_data['diagnostico']))
+              cursor = self.db.query(sql_query, (review_data['id_mascota'], review_data['rut_veterinario'], review_data['fecha_revision'], review_data['motivo_revision'], review_data['diagnostico']))
+              review_id = cursor.lastrowid
+
+              # En caso de que se hayan ingresado insumos, se registran
+              if 'supplies_list' in client_data.keys():
+                for supplie in client_data['supplies_list']:
+                  sql_query = '''
+                    INSERT INTO Insumos (nombre, tipo, cantidad, descripcion)
+                      VALUES (%s, %s, %s, %s)
+                  '''
+                  cursor = self.db.query(sql_query, supplie)
+                  supplie_id = cursor.lastrowid
+
+                  # Se inserta en la tabla de relación entre IDs de revisión e insumos
+                  sql_query = '''
+                    INSERT INTO InsumosRevisiones (id_revision, id_insumo)
+                      VALUES (%s, %s)
+                  '''
+                  self.db.query(sql_query, (review_id, supplie_id))
 
               resp_data = {'success': True, 'success_notification': 'La revisión ha sido registrada correctamente.'}
 
@@ -234,11 +252,25 @@ class Service:
               '''
               cursor = self.db.query(sql_query, (client_data['review_id'], client_data['pet_id']))
               review_reg = cursor.fetchone()
+
+              # Se obtiene la lista de insumos utilizados
+              sql_query = '''
+                SELECT Insumos.nombre FROM Insumos, InsumosRevisiones, Revisiones
+                  WHERE Revisiones.id = InsumosRevisiones.id_revision
+                  AND Insumos.id = InsumosRevisiones.id_insumo
+                  AND Revisiones.id = %s
+              '''
+              cursor = self.db.query(sql_query, (client_data['review_id'],))
+              supplies_list = cursor.fetchall()
               
               if review_reg is not None:
                 review_reg['fecha_revision'] = str(review_reg['fecha_revision'])
 
               resp_data = {'success': True, 'pet_data': pet_reg, 'review_data': review_reg}
+
+              if len(supplies_list) != 0:
+                resp_data['supplies_list'] = supplies_list
+
           
           elif tx_option == 3: # ======================== Modificación de revisión
             print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: Modificación de revisión'+Style.RESET_ALL)
@@ -323,6 +355,29 @@ class Service:
                     WHERE id = %s
                 '''
                 self.db.query(sql_query, (client_data['review_id'],))
+
+                # Se eliminan los insumos y la relación con la revisión
+                sql_query = '''
+                  SELECT id_insumo
+                    FROM InsumosRevisiones
+                      WHERE id_revision = %s
+                '''
+                cursor = self.db.query(sql_query, (client_data['review_id'],))
+                supplies_id_list = cursor.fetchall()
+
+                for supplie in supplies_id_list:
+                  sql_query = '''
+                    DELETE FROM Insumos
+                      WHERE id = %s
+                  '''
+                  self.db.query(sql_query, (supplie['id_insumo'],))
+                
+                # Se eliminan las relaciones de InsumosRevisiones
+                sql_query = '''
+                  DELETE FROM InsumosRevisiones
+                    WHERE id_revision = %s
+                '''
+                self.db.query(sql_query, (client_data['review_id'],))
               
                 resp_data = {'success': True, 'success_notification': 'La revisión seleccionada ha sido eliminada correctamente.'}
               
@@ -332,7 +387,7 @@ class Service:
 
             else:
               # El registro de la revisión no existe, por lo tanto se notifica el error.
-              resp_data = {'success': False, 'error_notification': 'La revisión seleccionada ya no se encuentra registrada.'}
+              resp_data = {'success': False, 'error_notification': 'La revisión seleccionada no se encuentra registrada.'}
 
         except Exception as error:
           print(ERROR_STYLE+error+Style.RESET_ALL)
