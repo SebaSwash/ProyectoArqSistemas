@@ -279,7 +279,14 @@ class Service:
                   WHERE id = %s
               '''
               self.db.query(sql_query, (pet_id,))
-              
+
+              # Se eliminan las posibles revisiones de la mascota.
+              sql_query = '''
+                DELETE FROM Revisiones
+                  WHERE id_mascota = %s
+              '''
+              self.db.query(sql_query, (pet_id,))
+
               resp_data = {'success': True, 'success_notification': 'La ficha de mascota ha sido eliminada correctamente.'}
 
         except Exception as error:

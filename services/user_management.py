@@ -326,6 +326,30 @@ class Service:
                   WHERE rut = %s
               '''
               self.db.query(sql_query, (client_data['rut_usuario'],))
+
+              # Se eliminan las posibles mascotas registradas y revisiones
+              sql_query = '''
+                SELECT id FROM Mascotas
+                  WHERE rut_propietario = %s
+              '''
+              cursor = self.db.query(sql_query, (client_data['rut_usuario'],))
+              pet_list = cursor.fetchall()
+
+              for pet in pet_list:
+                # Se eliminan las posibles revisiones de la mascota
+                sql_query = '''
+                  DELETE FROM Revisiones
+                    WHERE id_mascota = %s
+                '''
+                self.db.query(sql_query, (pet['id'],))
+              
+              # Finalmente se eliminan las mascotas asociadas al usuario eliminado
+              sql_query = '''
+                DELETE FROM Mascotas
+                  WHERE rut_propietario = %s
+              '''
+              self.db.query(sql_query, (client_data['rut_usuario'],))
+
               resp_data = {'delete_error': False, 'success_notification': 'El usuario seleccionado ha sido eliminado correctamente.'}
             
         except Exception as error:

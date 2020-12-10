@@ -173,7 +173,7 @@ class Service:
 
               resp_data = {'success': True, 'success_notification': 'La revisión ha sido registrada correctamente.'}
 
-          if tx_option == 2: # ======================== Ver detalle de revisiones registradas
+          elif tx_option == 2: # ======================== Ver detalle de revisiones registradas
             print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: Ver detalle de revisiones registradas'+Style.RESET_ALL)
 
             if client_data['tx_sub_option'] == 1: # ========== Validación de ID de mascota
@@ -239,6 +239,100 @@ class Service:
                 review_reg['fecha_revision'] = str(review_reg['fecha_revision'])
 
               resp_data = {'success': True, 'pet_data': pet_reg, 'review_data': review_reg}
+          
+          elif tx_option == 3: # ======================== Modificación de revisión
+            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: Modificación de revisión'+Style.RESET_ALL)
+
+            if client_data['tx_sub_option'] == 1: # ========== Obtención de lista de revisiones realizadas por el usuario
+              print(INSTRUCTIONS_STYLE+'\t- Subfuncionalidad requerida: Obtención de lista de revisiones realizadas por el usuario.'+Style.RESET_ALL)
+
+              # Se obtiene la lista de revisiones asociadas al RUT ingresado
+              sql_query = '''
+                SELECT Revisiones.id, Revisiones.fecha_revision AS 'Fecha de revisión', Mascotas.nombre AS 'Nombre de mascota', CONCAT(Usuarios.nombres, ' ', Usuarios.apellidos) AS 'Nombre de propietario'
+                  FROM Revisiones, Mascotas, Usuarios
+                    WHERE Revisiones.id_mascota = Mascotas.id
+                    AND Mascotas.rut_propietario = Usuarios.rut
+                    AND Revisiones.rut_veterinario = %s
+              '''
+              cursor = self.db.query(sql_query, (client_data['rut_usuario'],))
+
+              review_list = cursor.fetchall()
+              
+              for review in review_list:
+                review['Fecha de revisión'] = str(review['Fecha de revisión'])
+
+              resp_data = {'success': True, 'review_list': review_list}
+            
+            elif client_data['tx_sub_option'] == 2: # ========== Obtención de detalle de revisión seleccionada
+              print(INSTRUCTIONS_STYLE+'\t- Subfuncionalidad requerida: Obtención de detalle de revisión seleccionada.'+Style.RESET_ALL)
+
+              # Se obtiene el detalle de la revisión seleccionada.
+              sql_query = '''
+                SELECT * 
+                  FROM Revisiones
+                    WHERE id = %s
+              '''
+              cursor = self.db.query(sql_query, (client_data['review_id'],))
+
+              review_reg = cursor.fetchone()
+              review_reg['fecha_revision'] = str(review_reg['fecha_revision'])
+
+              if review_reg is not None:
+                # Se obtuvo correctamente el registro de la revisión seleccionada.
+                resp_data = {'success': True, 'review_data': review_reg}
+              
+              else:
+                # La revisión seleccionada no se encuentra registrada.
+                resp_data = {'success': False, 'error_notification': 'La revisión seleccionada ya no se encuentra registrada.'}
+              
+            
+            elif client_data['tx_sub_option'] == 3: # ========== Confirmación de modificación de revisión
+              print(INSTRUCTIONS_STYLE+'\t- Subfuncionalidad requerida: Confirmación de modificación de revisión.'+Style.RESET_ALL)
+
+              # Se realiza la modificación de los campos según el formulario recibido.
+              sql_query = '''
+                UPDATE Revisiones
+                  SET motivo_revision = %s, diagnostico = %s
+                    WHERE id = %s
+              '''
+              self.db.query(sql_query, (client_data['review_data']['motivo_revision'], client_data['review_data']['diagnostico'], client_data['review_data']['id']))
+
+              resp_data = {'success': True, 'success_notification': 'La revisión ha sido modificada correctamente.'}
+          
+          elif tx_option == 4: # ======================== Eliminación de revisión
+            print(INSTRUCTIONS_STYLE+'\t- Funcionalidad requerida: Eliminación de revisión'+Style.RESET_ALL)
+
+            # Se verifica si existe el registro de la revisión según el ID de revisión ingresado.
+            sql_query = '''
+              SELECT rut_veterinario
+                FROM Revisiones
+                  WHERE id = %s
+            '''
+            cursor = self.db.query(sql_query, (client_data['review_id'],))
+
+            review_reg = cursor.fetchone()
+
+            if review_reg is not None:
+              # El registro de la revisión existe.
+
+              # Se verifica si el registro lo realizó el usuario que quiere eliminarlo.
+              if client_data['rut_usuario'].lower() == review_reg['rut_veterinario'].lower():
+                # El usuario que solicita la eliminación realizó el registro, por lo tanto se elimina.
+                sql_query = '''
+                  DELETE FROM Revisiones
+                    WHERE id = %s
+                '''
+                self.db.query(sql_query, (client_data['review_id'],))
+              
+                resp_data = {'success': True, 'success_notification': 'La revisión seleccionada ha sido eliminada correctamente.'}
+              
+              else:
+                # El usuario que solicita la eliminación NO realizó el registro, por lo tanto se notifica el error.
+                resp_data = {'success': False, 'error_notification': 'Este registro de revisión no puede ser eliminado con tu cuenta.'}
+
+            else:
+              # El registro de la revisión no existe, por lo tanto se notifica el error.
+              resp_data = {'success': False, 'error_notification': 'La revisión seleccionada ya no se encuentra registrada.'}
 
         except Exception as error:
           print(ERROR_STYLE+error+Style.RESET_ALL)
