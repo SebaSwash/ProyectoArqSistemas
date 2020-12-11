@@ -12,8 +12,24 @@
 
 # Módulos a utilizar
 from db import db_wrapper
+from datetime import datetime
 from db.db_credentials import *
-import socket, argparse, bcrypt
+import socket, argparse, bcrypt, os
+from colorama import Back, Fore, Style, init
+
+# Inicialización para librería de colores
+init()
+
+# Función para limpiar pantalla
+def clear_screen():
+  os.system('cls' if os.name == 'nt' else 'clear')
+
+# Constantes para combinaciones de colores y estilos (Back -> color de fondo, Fore -> color de texto)
+INSTRUCTIONS_STYLE = Back.WHITE + Fore.BLACK
+ERROR_STYLE = Back.RED + Fore.WHITE
+WARNING_STYLE = Back.YELLOW + Fore.WHITE
+INFO_STYLE = Back.BLUE + Fore.WHITE
+SUCCESS_STYLE = Back.GREEN + Fore.WHITE
 
 class Service:
   def __init__(self, host, port, name):
@@ -28,16 +44,19 @@ class Service:
     
     try:
       self.sock.connect((host, int(port)))
+      print(INSTRUCTIONS_STYLE+self.service_title+Style.RESET_ALL)
+      print(SUCCESS_STYLE+'['+str(datetime.now().replace(microsecond=0))+'] Servicio conectado correctamente al bus de servicios. Host: '+str(host)+' - Puerto: '+str(port)+Style.RESET_ALL)
       # En caso de conectar exitosamente, se guarda como atributo el host y el puerto
       self.host = host
       self.port = port
 
       self.bus_register() # Registro del servicio en el bus de servicios
+
       self.run() # Inicio de la ejecución del servicio
 
     except Exception as error:
-      print('[Error] Se ha producido el siguiente error al establecer conexión con el bus de servicios:')
-      print(str(error))
+      print(ERROR_STYLE+'[Error] Se ha producido el siguiente error al establecer conexión con el bus de servicios:')
+      print(str(error)+Style.RESET_ALL)
     
   # Registro del nombre de servicio en el bus previo a la ejecución
   def bus_register(self):
@@ -46,11 +65,15 @@ class Service:
       tx = self.generate_tx_length(len(tx_cmd)) + tx_cmd
 
       self.sock.send(tx.encode(encoding='UTF-8'))
-      status = self.sock.recv(4096).decode('UTF-8')[10:12] # 'OK' (exitoso) o 'NK' (fallido)
+      status = self.sock.recv(10000).decode('UTF-8')[10:12] # 'OK' (exitoso) o 'NK' (fallido)
+      
+      if status.lower() == 'ok':
+        # Se ha realizado correctamente el registro del servicio con el nombre
+        print(SUCCESS_STYLE+'['+str(datetime.now().replace(microsecond=0))+'] Servicio registrado correctamente en el bus de servicios con nombre "'+str(self.service_name)+'"'+Style.RESET_ALL)
     
     except Exception as error:
-      print('[Error] Se ha producido el siguiente error al registrar el servicio:')
-      print(str(error))
+      print(ERROR_STYLE+'[Error] Se ha producido el siguiente error al registrar el servicio:')
+      print(str(error)+Style.RESET_ALL)
       return
 
   # Método para generar el largo de la transacción (servicio + data) - Ej: 18 (int) --> 00018 (str)
@@ -81,7 +104,7 @@ class Service:
   def run(self):
     # El servicio se mantiene escuchando a través del socket
     while True:
-      tx = self.sock.recv(4096)
+      tx = self.sock.recv(10000)
 
       if not tx:
         # Se cierra el servicio si no se reciben datos desde el socket
@@ -92,12 +115,12 @@ class Service:
         tx = tx.decode('UTF-8')
         # Se procesa la transacción para obtener los componentes individuales
         tx_length, tx_service, tx_data = self.split_tx(tx)
-        print('------------------------------------------------------------------------------')
-        print('Transacción recibida desde cliente')
-        print('\t- Largo de la transacción: ' +str(tx_length)+' ('+str(int(tx_length))+')')
-        print('\t- Servicio invocado: '+str(tx_service))
-        print('\t- Datos recibidos: '+str(tx_data))
-        print('------------------------------------------------------------------------------')
+        
+        print('')
+        print(INFO_STYLE+'['+str(datetime.now().replace(microsecond=0))+'] Transacción recibida desde cliente'+Style.RESET_ALL)
+        print(INSTRUCTIONS_STYLE+'\t- Largo de la transacción: ' +str(tx_length)+' ('+str(int(tx_length))+')'+Style.RESET_ALL)
+        print(INSTRUCTIONS_STYLE+'\t- Servicio invocado: '+str(tx_service)+Style.RESET_ALL)
+        print(INSTRUCTIONS_STYLE+'\t- Datos recibidos: '+str(tx_data)+Style.RESET_ALL)
 
         # Se revisa el número de operación recibido desde el cliente
         try:
@@ -134,7 +157,7 @@ class Service:
               resp_data = {'auth_error': True, 'error_notification': 'Se ha producido un error de credenciales. Revisa nuevamente los campos.'}
         
         except Exception as error:
-          print(error)
+          print(ERROR_STYLE+error+Style.RESET_ALL)
           # Se genera el error y se envía al cliente
           resp_data = {'auth_error': True, 'error_notification': str(error)}
         
@@ -144,8 +167,8 @@ class Service:
       
       except Exception as error:
         # Se notifica el error al cliente y se imprime en el servicio
-        print('[Error] Se ha producido el siguiente error al procesar la transacción:')
-        print(str(error))
+        print(ERROR_STYLE+'[Error] Se ha producido el siguiente error al procesar la transacción:')
+        print(str(error)+Style.RESET_ALL)
         error_msg = '[Error] Se ha producido el siguiente error al procesar la transacción:\n'+str(error)
         self.sock.send(self.generate_tx(error_msg).encode(encoding='UTF-8'))
 
@@ -172,8 +195,9 @@ if __name__ == '__main__':
 
   if len(service_name) != 5:
     # Se notifica el error y se termina la ejecución
-    print('[Error] El nombre del servicio debe ser de 5 caracteres. (Formato del bus de servicios)')
+    print(ERROR_STYLE+'[Error] El nombre del servicio debe ser de 5 caracteres. (Formato del bus de servicios)'+Style.RESET_ALL)
     exit()
-
+  
+  clear_screen()
   # Se instancia el objeto de la clase servicio
   service = Service(host, port, service_name)
