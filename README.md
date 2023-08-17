@@ -2,8 +2,6 @@
 Proyecto semestral SOA - Arquitectura de Sistemas (02 - 2020)
 ---
 ### Integrantes
-* Lorenzo Alfaro Bravo
-* Flor Calla Lazo
 * Sebastián Toro Severino
 
 ---
